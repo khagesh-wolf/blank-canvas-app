@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { PageLayout } from '@/components/layout/PageLayout';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { Order, OrderItem, Bill } from '@/types';
+import { OrderItem } from '@/types';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { LiveIndicator } from '@/components/ui/LiveIndicator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, 
@@ -18,11 +17,15 @@ import {
   History,
   Receipt,
   Search,
-  X
+  X,
+  LogOut,
+  Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatNepalTime, formatNepalDateTime } from '@/lib/nepalTime';
 
 export default function Counter() {
+  const navigate = useNavigate();
   const { 
     menuItems, 
     orders, 
@@ -30,41 +33,58 @@ export default function Counter() {
     transactions,
     createBill, 
     addOrder,
-    addOrderToBill, 
     payBill,
     updateOrderStatus,
-    customers,
-    addOrUpdateCustomer
+    getUnpaidOrdersByTable,
+    isAuthenticated,
+    currentUser,
+    logout,
+    settings
   } = useStore();
 
-  const [tab, setTab] = useState('order');
-  const [table, setTable] = useState('');
-  const [phone, setPhone] = useState('');
-  const [cart, setCart] = useState<OrderItem[]>([]);
-  const [selectedBills, setSelectedBills] = useState<string[]>([]);
+  const [tab, setTab] = useState('orders');
+  const [billingTable, setBillingTable] = useState('');
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [paymentModal, setPaymentModal] = useState(false);
+  const [currentBillId, setCurrentBillId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // New order state
+  const [orderTable, setOrderTable] = useState('');
+  const [orderPhone, setOrderPhone] = useState('');
+  const [cart, setCart] = useState<OrderItem[]>([]);
 
-  const activeBills = bills.filter(b => b.status === 'active');
+  // Redirect if not authenticated
+  if (!isAuthenticated) {
+    navigate('/auth');
+    return null;
+  }
+
   const pendingOrders = orders.filter(o => o.status === 'pending');
-
-  // Menu categories
+  const activeOrders = orders.filter(o => ['accepted', 'preparing', 'ready'].includes(o.status));
+  const unpaidBills = bills.filter(b => b.status === 'unpaid');
   const categories = [...new Set(menuItems.map(m => m.category))];
 
   const addToCart = (item: typeof menuItems[0]) => {
-    const existing = cart.find(c => c.id === item.id);
+    const existing = cart.find(c => c.menuItemId === item.id);
     if (existing) {
       setCart(cart.map(c => 
-        c.id === item.id ? { ...c, qty: c.qty + 1 } : c
+        c.menuItemId === item.id ? { ...c, qty: c.qty + 1 } : c
       ));
     } else {
-      setCart([...cart, { id: item.id, name: item.name, qty: 1, price: item.price }]);
+      setCart([...cart, { 
+        id: Math.random().toString(36).substring(2, 9),
+        menuItemId: item.id, 
+        name: item.name, 
+        qty: 1, 
+        price: item.price 
+      }]);
     }
   };
 
-  const updateCartQty = (id: string, delta: number) => {
+  const updateCartQty = (menuItemId: string, delta: number) => {
     setCart(cart.map(c => {
-      if (c.id === id) {
+      if (c.menuItemId === menuItemId) {
         const newQty = c.qty + delta;
         return newQty > 0 ? { ...c, qty: newQty } : c;
       }
@@ -72,141 +92,133 @@ export default function Counter() {
     }).filter(c => c.qty > 0));
   };
 
-  const removeFromCart = (id: string) => {
-    setCart(cart.filter(c => c.id !== id));
-  };
-
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
 
   const placeOrder = () => {
-    if (!table || !phone || cart.length === 0) {
+    if (!orderTable || !orderPhone || cart.length === 0) {
       toast.error('Please fill table number, phone, and add items');
       return;
     }
-
-    const tableNum = parseInt(table);
-    
-    // Create or get bill
-    const billId = createBill(tableNum, phone);
-    
-    // Add customer
-    addOrUpdateCustomer(phone);
-    
-    // Create order
-    const order: Order = {
-      id: Math.random().toString(36).substring(2, 9),
-      table: tableNum,
-      phone,
-      items: cart,
-      status: 'pending',
-      time: new Date().toISOString(),
-      total: cartTotal,
-    };
-    
-    addOrder(order);
-    addOrderToBill(billId, order);
-    
+    const tableNum = parseInt(orderTable);
+    addOrder(tableNum, orderPhone, cart);
     toast.success('Order placed successfully!');
     setCart([]);
-    setTable('');
-    setPhone('');
+    setOrderTable('');
+    setOrderPhone('');
   };
 
-  const handleAcceptOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'preparing');
-    toast.success('Order accepted');
+  const handleAccept = (orderId: string) => {
+    updateOrderStatus(orderId, 'accepted');
+    toast.success('Order accepted - Print for kitchen');
   };
 
-  const handleRejectOrder = (orderId: string) => {
+  const handleReject = (orderId: string) => {
     updateOrderStatus(orderId, 'cancelled');
     toast.info('Order rejected');
   };
 
-  const toggleBillSelection = (billId: string) => {
-    setSelectedBills(prev => 
-      prev.includes(billId) 
-        ? prev.filter(id => id !== billId)
-        : [...prev, billId]
-    );
+  const handleLookupTable = () => {
+    const tableNum = parseInt(billingTable);
+    if (!tableNum) {
+      toast.error('Enter a valid table number');
+      return;
+    }
+    const unpaidOrders = getUnpaidOrdersByTable(tableNum);
+    if (unpaidOrders.length === 0) {
+      toast.error('No unpaid orders for this table');
+      return;
+    }
+    setSelectedOrderIds(unpaidOrders.map(o => o.id));
   };
 
-  const selectedBillsTotal = selectedBills.reduce((sum, id) => {
-    const bill = bills.find(b => b.id === id);
-    return sum + (bill?.total || 0);
-  }, 0);
+  const handleCreateBill = () => {
+    if (selectedOrderIds.length === 0) return;
+    const tableNum = parseInt(billingTable);
+    const bill = createBill(tableNum, selectedOrderIds, 0);
+    setCurrentBillId(bill.id);
+    setPaymentModal(true);
+  };
 
   const handlePayment = (method: 'cash' | 'fonepay') => {
-    selectedBills.forEach(id => {
-      payBill(id, method);
-    });
-    toast.success(`Payment of ₹${selectedBillsTotal} completed via ${method}`);
-    setSelectedBills([]);
+    if (!currentBillId) return;
+    payBill(currentBillId, method);
+    toast.success(`Payment completed via ${method}`);
     setPaymentModal(false);
+    setCurrentBillId(null);
+    setSelectedOrderIds([]);
+    setBillingTable('');
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/auth');
   };
 
   const filteredTransactions = searchTerm 
     ? transactions.filter(t => 
-        t.table.toString().includes(searchTerm) || 
-        t.customers.some(c => c.includes(searchTerm))
+        t.tableNumber.toString().includes(searchTerm) || 
+        t.customerPhones.some(c => c.includes(searchTerm))
       )
     : transactions;
 
   return (
-    <PageLayout 
-      title="Counter POS" 
-      subtitle="Order & billing management"
-      fullWidth
-    >
-      <div className="flex h-[calc(100vh-8rem)]">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">{settings.restaurantName} - Counter</h1>
+          <p className="text-sm text-muted-foreground">{formatNepalDateTime(new Date())}</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-muted-foreground">{currentUser?.name}</span>
+          <Button variant="outline" size="sm" onClick={handleLogout}>
+            <LogOut className="w-4 h-4 mr-2" /> Logout
+          </Button>
+        </div>
+      </header>
+
+      <div className="flex h-[calc(100vh-73px)]">
         {/* Sidebar - Pending Orders */}
         <div className="w-80 bg-card border-r border-border flex flex-col">
           <div className="p-4 border-b border-border">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Incoming Orders</h3>
-              <div className="flex items-center gap-2">
-                <LiveIndicator color={pendingOrders.length > 0 ? 'amber' : 'green'} />
-                <span className="text-sm text-muted-foreground">{pendingOrders.length}</span>
-              </div>
-            </div>
+            <h3 className="font-semibold flex items-center gap-2">
+              Incoming Orders
+              {pendingOrders.length > 0 && (
+                <span className="bg-warning text-warning-foreground px-2 py-0.5 rounded-full text-xs">
+                  {pendingOrders.length}
+                </span>
+              )}
+            </h3>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
             {pendingOrders.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                No pending orders
-              </div>
+              <div className="text-center text-muted-foreground py-8">No pending orders</div>
             ) : (
               pendingOrders.map(order => (
-                <div key={order.id} className="glass-card p-3 border-l-4 border-warning animate-slide-in">
+                <div key={order.id} className="bg-muted rounded-xl p-3 border-l-4 border-warning animate-slide-up">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <span className="font-bold">Table {order.table}</span>
-                      <p className="text-xs text-muted-foreground">{order.phone}</p>
+                      <span className="font-bold">Table {order.tableNumber}</span>
+                      <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(order.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatNepalTime(order.createdAt)}
                     </span>
                   </div>
                   <div className="space-y-1 text-sm mb-3">
                     {order.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{item.qty}x {item.name}</span>
-                      </div>
+                      <div key={idx}>{item.qty}x {item.name}</div>
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      className="flex-1 bg-success hover:bg-success/90"
-                      onClick={() => handleAcceptOrder(order.id)}
-                    >
+                    <Button size="sm" className="flex-1 bg-success hover:bg-success/90" onClick={() => handleAccept(order.id)}>
                       <Check className="w-3 h-3 mr-1" /> Accept
                     </Button>
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={() => handleRejectOrder(order.id)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => handleAccept(order.id)}>
+                      <Printer className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleReject(order.id)}>
                       <X className="w-3 h-3" />
                     </Button>
                   </div>
@@ -219,57 +231,40 @@ export default function Counter() {
         {/* Main Content */}
         <div className="flex-1 flex flex-col">
           <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col">
-            <div className="border-b border-border px-4">
+            <div className="border-b border-border px-4 bg-card">
               <TabsList className="bg-transparent h-12">
-                <TabsTrigger value="order" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <TabsTrigger value="orders" className="data-[state=active]:gradient-primary data-[state=active]:text-white">
                   <ShoppingCart className="w-4 h-4 mr-2" /> New Order
                 </TabsTrigger>
-                <TabsTrigger value="bills" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                  <Receipt className="w-4 h-4 mr-2" /> Active Bills ({activeBills.length})
+                <TabsTrigger value="active" className="data-[state=active]:gradient-primary data-[state=active]:text-white">
+                  Active ({activeOrders.length})
                 </TabsTrigger>
-                <TabsTrigger value="history" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <TabsTrigger value="billing" className="data-[state=active]:gradient-primary data-[state=active]:text-white">
+                  <Receipt className="w-4 h-4 mr-2" /> Billing
+                </TabsTrigger>
+                <TabsTrigger value="history" className="data-[state=active]:gradient-primary data-[state=active]:text-white">
                   <History className="w-4 h-4 mr-2" /> History
                 </TabsTrigger>
               </TabsList>
             </div>
 
             {/* New Order Tab */}
-            <TabsContent value="order" className="flex-1 flex m-0">
-              {/* Menu Grid */}
+            <TabsContent value="orders" className="flex-1 flex m-0">
               <div className="flex-1 p-4 overflow-y-auto scrollbar-thin">
                 <div className="flex gap-4 mb-4">
-                  <Input 
-                    placeholder="Table No." 
-                    value={table}
-                    onChange={(e) => setTable(e.target.value)}
-                    className="w-32"
-                    type="number"
-                  />
-                  <Input 
-                    placeholder="Customer Phone" 
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-48"
-                  />
+                  <Input placeholder="Table No." value={orderTable} onChange={(e) => setOrderTable(e.target.value)} className="w-32" type="number" />
+                  <Input placeholder="Customer Phone" value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} className="w-48" />
                 </div>
-
                 {categories.map(category => (
                   <div key={category} className="mb-6">
-                    <h3 className="font-serif text-lg font-semibold mb-3 text-primary">{category}</h3>
+                    <h3 className="text-lg font-semibold mb-3 text-primary">{category}</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {menuItems
-                        .filter(m => m.category === category && m.available)
-                        .map(item => (
-                          <button
-                            key={item.id}
-                            onClick={() => addToCart(item)}
-                            className="glass-card-hover p-4 text-left"
-                          >
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-primary font-bold">₹{item.price}</p>
-                          </button>
-                        ))
-                      }
+                      {menuItems.filter(m => m.category === category && m.available).map(item => (
+                        <button key={item.id} onClick={() => addToCart(item)} className="menu-card p-4 text-left">
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-primary font-bold">रू {item.price}</p>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -280,124 +275,85 @@ export default function Counter() {
                 <div className="p-4 border-b border-border">
                   <h3 className="font-semibold flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4" /> Cart
-                    {cart.length > 0 && (
-                      <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-xs">
-                        {cart.reduce((sum, c) => sum + c.qty, 0)}
-                      </span>
-                    )}
+                    {cart.length > 0 && <span className="gradient-primary text-white px-2 py-0.5 rounded-full text-xs">{cart.reduce((s, c) => s + c.qty, 0)}</span>}
                   </h3>
                 </div>
-                
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin">
-                  {cart.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                      Cart is empty
-                    </div>
-                  ) : (
-                    cart.map(item => (
-                      <div key={item.id} className="flex items-center justify-between bg-secondary/50 p-2 rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">₹{item.price} each</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => updateCartQty(item.id, -1)}
-                            className="w-6 h-6 rounded bg-secondary flex items-center justify-center hover:bg-secondary/80"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-6 text-center font-medium">{item.qty}</span>
-                          <button 
-                            onClick={() => updateCartQty(item.id, 1)}
-                            className="w-6 h-6 rounded bg-secondary flex items-center justify-center hover:bg-secondary/80"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                          <button 
-                            onClick={() => removeFromCart(item.id)}
-                            className="w-6 h-6 rounded bg-destructive/20 text-destructive flex items-center justify-center hover:bg-destructive/30"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
+                  {cart.length === 0 ? <div className="text-center text-muted-foreground py-8">Cart is empty</div> : cart.map(item => (
+                    <div key={item.id} className="flex items-center justify-between bg-muted p-2 rounded-lg">
+                      <div><p className="font-medium text-sm">{item.name}</p><p className="text-xs text-muted-foreground">रू {item.price}</p></div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => updateCartQty(item.menuItemId, -1)} className="w-6 h-6 rounded bg-card flex items-center justify-center"><Minus className="w-3 h-3" /></button>
+                        <span className="w-6 text-center font-medium">{item.qty}</span>
+                        <button onClick={() => updateCartQty(item.menuItemId, 1)} className="w-6 h-6 rounded gradient-primary flex items-center justify-center text-white"><Plus className="w-3 h-3" /></button>
                       </div>
-                    ))
-                  )}
+                    </div>
+                  ))}
                 </div>
-
                 <div className="p-4 border-t border-border space-y-3">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span className="text-primary">₹{cartTotal}</span>
-                  </div>
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    disabled={cart.length === 0 || !table || !phone}
-                    onClick={placeOrder}
-                  >
-                    Place Order
-                  </Button>
+                  <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">रू {cartTotal}</span></div>
+                  <Button className="w-full gradient-primary" size="lg" disabled={cart.length === 0 || !orderTable || !orderPhone} onClick={placeOrder}>Place Order</Button>
                 </div>
               </div>
             </TabsContent>
 
-            {/* Active Bills Tab */}
-            <TabsContent value="bills" className="flex-1 p-4 overflow-y-auto m-0">
-              {activeBills.length === 0 ? (
-                <div className="text-center text-muted-foreground py-12">
-                  <Receipt className="w-16 h-16 mx-auto opacity-50 mb-4" />
-                  <p>No active bills</p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                    {activeBills.map(bill => (
-                      <div 
-                        key={bill.id}
-                        onClick={() => toggleBillSelection(bill.id)}
-                        className={`glass-card p-4 cursor-pointer transition-all ${
-                          selectedBills.includes(bill.id) 
-                            ? 'border-success ring-2 ring-success/20' 
-                            : ''
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <span className="font-bold text-lg">Table {bill.table}</span>
-                            <p className="text-sm text-muted-foreground">
-                              {bill.customers.join(', ')}
-                            </p>
-                          </div>
-                          {selectedBills.includes(bill.id) && (
-                            <div className="w-6 h-6 rounded-full bg-success flex items-center justify-center">
-                              <Check className="w-4 h-4 text-success-foreground" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-1 text-sm mb-3">
-                          {bill.orders.flatMap(o => o.items).slice(0, 3).map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-muted-foreground">
-                              <span>{item.qty}x {item.name}</span>
-                              <span>₹{item.price * item.qty}</span>
-                            </div>
-                          ))}
-                          {bill.orders.flatMap(o => o.items).length > 3 && (
-                            <p className="text-xs text-muted-foreground">
-                              +{bill.orders.flatMap(o => o.items).length - 3} more items
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex justify-between font-bold text-lg border-t border-border pt-2">
-                          <span>Total</span>
-                          <span className="text-primary">₹{bill.total}</span>
-                        </div>
+            {/* Active Orders Tab */}
+            <TabsContent value="active" className="flex-1 p-4 overflow-y-auto m-0">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {activeOrders.map(order => (
+                  <div key={order.id} className="bg-card rounded-xl border border-border p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <span className="font-bold">Table {order.tableNumber}</span>
+                        <StatusBadge status={order.status} className="ml-2" />
                       </div>
-                    ))}
+                      <span className="text-xs text-muted-foreground">{formatNepalTime(order.createdAt)}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground mb-3">{order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</div>
+                    <div className="flex gap-2">
+                      {order.status === 'accepted' && <Button size="sm" className="flex-1" onClick={() => updateOrderStatus(order.id, 'preparing')}>Start Preparing</Button>}
+                      {order.status === 'preparing' && <Button size="sm" className="flex-1 bg-success" onClick={() => updateOrderStatus(order.id, 'ready')}>Mark Ready</Button>}
+                      {order.status === 'ready' && <Button size="sm" className="flex-1" variant="outline" onClick={() => updateOrderStatus(order.id, 'served')}>Mark Served</Button>}
+                    </div>
                   </div>
-                </>
-              )}
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* Billing Tab */}
+            <TabsContent value="billing" className="flex-1 p-4 m-0">
+              <div className="max-w-md mx-auto">
+                <div className="bg-card rounded-xl border border-border p-6">
+                  <h2 className="font-bold text-lg mb-4">Generate Bill</h2>
+                  <div className="flex gap-2 mb-4">
+                    <Input placeholder="Table Number" value={billingTable} onChange={(e) => setBillingTable(e.target.value)} type="number" />
+                    <Button onClick={handleLookupTable}><Search className="w-4 h-4 mr-2" /> Find</Button>
+                  </div>
+                  {selectedOrderIds.length > 0 && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">{selectedOrderIds.length} order(s) found</p>
+                      <Button onClick={handleCreateBill} className="w-full gradient-primary">Create Bill & Pay</Button>
+                    </div>
+                  )}
+                </div>
+
+                {unpaidBills.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="font-bold mb-4">Unpaid Bills</h3>
+                    <div className="space-y-3">
+                      {unpaidBills.map(bill => (
+                        <div key={bill.id} className="bg-card rounded-xl border border-border p-4">
+                          <div className="flex justify-between mb-2">
+                            <span className="font-bold">Table {bill.tableNumber}</span>
+                            <span className="font-bold text-primary">रू {bill.total}</span>
+                          </div>
+                          <Button size="sm" className="w-full" onClick={() => { setCurrentBillId(bill.id); setPaymentModal(true); }}>Pay Now</Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             {/* History Tab */}
@@ -405,20 +361,13 @@ export default function Counter() {
               <div className="flex gap-4 mb-4">
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search by table or phone" 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+                  <Input placeholder="Search by table or phone" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
                 </div>
               </div>
-
-              <div className="glass-card overflow-hidden">
+              <div className="bg-card rounded-xl border border-border overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-secondary/50">
+                  <thead className="bg-muted">
                     <tr>
-                      <th className="text-left p-4 font-semibold">Bill ID</th>
                       <th className="text-left p-4 font-semibold">Time</th>
                       <th className="text-left p-4 font-semibold">Table</th>
                       <th className="text-left p-4 font-semibold">Customers</th>
@@ -428,33 +377,20 @@ export default function Counter() {
                   </thead>
                   <tbody>
                     {filteredTransactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                          No transactions found
+                      <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">No transactions</td></tr>
+                    ) : filteredTransactions.slice().reverse().map(t => (
+                      <tr key={t.id} className="border-t border-border">
+                        <td className="p-4">{formatNepalDateTime(t.paidAt)}</td>
+                        <td className="p-4">Table {t.tableNumber}</td>
+                        <td className="p-4">{t.customerPhones.join(', ')}</td>
+                        <td className="p-4 font-bold">रू {t.total}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${t.paymentMethod === 'cash' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'}`}>
+                            {t.paymentMethod.toUpperCase()}
+                          </span>
                         </td>
                       </tr>
-                    ) : (
-                      filteredTransactions.slice().reverse().map(t => (
-                        <tr key={t.id} className="border-t border-border hover:bg-secondary/30">
-                          <td className="p-4 font-mono text-sm">#{t.id.slice(-6)}</td>
-                          <td className="p-4 text-muted-foreground">
-                            {new Date(t.paidAt).toLocaleString()}
-                          </td>
-                          <td className="p-4">Table {t.table}</td>
-                          <td className="p-4">{t.customers.join(', ')}</td>
-                          <td className="p-4 font-bold text-primary">₹{t.total}</td>
-                          <td className="p-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              t.paymentMethod === 'cash' 
-                                ? 'bg-success/20 text-success' 
-                                : 'bg-accent/20 text-accent'
-                            }`}>
-                              {t.paymentMethod.toUpperCase()}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -463,54 +399,20 @@ export default function Counter() {
         </div>
       </div>
 
-      {/* Floating Action Bar */}
-      {selectedBills.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border rounded-full px-6 py-3 shadow-xl flex items-center gap-6 animate-slide-up">
-          <span className="font-medium">
-            {selectedBills.length} bill{selectedBills.length > 1 ? 's' : ''} selected
-          </span>
-          <span className="text-xl font-bold text-primary">₹{selectedBillsTotal}</span>
-          <Button onClick={() => setPaymentModal(true)}>
-            Pay & Clear
-          </Button>
-        </div>
-      )}
-
       {/* Payment Modal */}
       <Dialog open={paymentModal} onOpenChange={setPaymentModal}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-serif text-2xl">Confirm Payment</DialogTitle>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <div className="text-center mb-6">
-              <p className="text-muted-foreground mb-2">Total Amount</p>
-              <p className="text-4xl font-bold text-primary">₹{selectedBillsTotal}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Button 
-                variant="outline" 
-                size="lg" 
-                className="h-20 flex-col gap-2"
-                onClick={() => handlePayment('cash')}
-              >
-                <Banknote className="w-6 h-6" />
-                <span>Cash</span>
-              </Button>
-              <Button 
-                size="lg" 
-                className="h-20 flex-col gap-2 bg-accent hover:bg-accent/90"
-                onClick={() => handlePayment('fonepay')}
-              >
-                <CreditCard className="w-6 h-6" />
-                <span>Fonepay</span>
-              </Button>
-            </div>
+          <DialogHeader><DialogTitle>Select Payment Method</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <Button onClick={() => handlePayment('cash')} className="h-20 flex-col gap-2" variant="outline">
+              <Banknote className="w-6 h-6" /> Cash
+            </Button>
+            <Button onClick={() => handlePayment('fonepay')} className="h-20 flex-col gap-2 gradient-primary">
+              <CreditCard className="w-6 h-6" /> Fonepay
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </PageLayout>
+    </div>
   );
 }
