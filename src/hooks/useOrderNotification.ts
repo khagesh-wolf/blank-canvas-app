@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useStore } from '@/store/useStore';
 
 export function useOrderNotification() {
+  // Subscribe directly to orders from the store for real-time updates
   const orders = useStore((state) => state.orders);
-  const previousOrdersRef = useRef<number>(0);
+  const previousOrderIdsRef = useRef<Set<string>>(new Set());
   const audioContextRef = useRef<AudioContext | null>(null);
+  const isInitializedRef = useRef(false);
 
   const playNotificationSound = () => {
     try {
@@ -65,6 +67,7 @@ export function useOrderNotification() {
         osc4.stop(ctx.currentTime + 0.6);
       }, 200);
       
+      console.log('Notification sound played');
     } catch (error) {
       console.log('Audio notification failed:', error);
     }
@@ -72,14 +75,30 @@ export function useOrderNotification() {
 
   useEffect(() => {
     const pendingOrders = orders.filter(o => o.status === 'pending');
-    const currentPendingCount = pendingOrders.length;
+    const currentPendingIds = new Set(pendingOrders.map(o => o.id));
     
-    // Only play sound if new pending orders appeared (not on initial load)
-    if (previousOrdersRef.current > 0 && currentPendingCount > previousOrdersRef.current) {
+    // Skip initial load - just store the current IDs
+    if (!isInitializedRef.current) {
+      previousOrderIdsRef.current = currentPendingIds;
+      isInitializedRef.current = true;
+      console.log('Order notification initialized with', currentPendingIds.size, 'pending orders');
+      return;
+    }
+    
+    // Check if there are NEW order IDs that weren't in the previous set
+    let hasNewOrders = false;
+    currentPendingIds.forEach(id => {
+      if (!previousOrderIdsRef.current.has(id)) {
+        hasNewOrders = true;
+        console.log('New pending order detected:', id);
+      }
+    });
+    
+    if (hasNewOrders) {
       playNotificationSound();
     }
     
-    previousOrdersRef.current = currentPendingCount;
+    previousOrderIdsRef.current = currentPendingIds;
   }, [orders]);
 
   // Enable audio on first user interaction
@@ -91,6 +110,7 @@ export function useOrderNotification() {
       if (audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume();
       }
+      console.log('Audio context enabled');
     };
     
     document.addEventListener('click', enableAudio, { once: true });
