@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { MenuItem, Order, Bill, Transaction, Customer, Staff, Settings, OrderStatus, OrderItem } from '@/types';
+import { MenuItem, Order, Bill, Transaction, Customer, Staff, Settings, OrderStatus, OrderItem, Expense } from '@/types';
 import { getNepalTimestamp, isToday } from '@/lib/nepalTime';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -107,6 +107,12 @@ interface StoreState extends AuthState {
   // Settings
   settings: Settings;
   updateSettings: (settings: Partial<Settings>) => void;
+
+  // Expenses
+  expenses: Expense[];
+  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void;
+  deleteExpense: (id: string) => void;
+  getExpensesByDateRange: (start: string, end: string) => Expense[];
 
   // Stats
   getTodayStats: () => { revenue: number; orders: number; activeOrders: number; activeTables: number };
@@ -347,6 +353,24 @@ export const useStore = create<StoreState>()(
         settings: { ...state.settings, ...newSettings }
       })),
 
+      // Expenses
+      expenses: [],
+
+      addExpense: (expense) => set((state) => ({
+        expenses: [...state.expenses, { ...expense, id: generateId(), createdAt: getNepalTimestamp() }]
+      })),
+
+      deleteExpense: (id) => set((state) => ({
+        expenses: state.expenses.filter(e => e.id !== id)
+      })),
+
+      getExpensesByDateRange: (start, end) => {
+        return get().expenses.filter(e => {
+          const date = new Date(e.createdAt);
+          return date >= new Date(start) && date <= new Date(end + 'T23:59:59');
+        });
+      },
+
       // Stats
       getTodayStats: () => {
         const todayTransactions = get().transactions.filter(t => isToday(t.paidAt));
@@ -398,6 +422,7 @@ if (channel) {
           transactions: state.transactions,
           customers: state.customers,
           menuItems: state.menuItems,
+          expenses: state.expenses,
         }
       });
     }

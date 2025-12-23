@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { Order, OrderItem } from '@/types';
+import { Order, OrderItem, Expense } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Check,
   X,
@@ -12,7 +13,10 @@ import {
   LogOut,
   Printer,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  Wallet,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatNepalTime, formatNepalDateTime } from '@/lib/nepalTime';
@@ -30,6 +34,8 @@ interface BillGroup {
   createdAt: string;
 }
 
+const expenseCategories = ['ingredients', 'utilities', 'salary', 'maintenance', 'other'] as const;
+
 export default function Counter() {
   const navigate = useNavigate();
   const printRef = useRef<HTMLDivElement>(null);
@@ -42,9 +48,12 @@ export default function Counter() {
     bills, 
     transactions,
     customers,
+    expenses,
     createBill, 
     payBill,
     updateOrderStatus,
+    addExpense,
+    deleteExpense,
     isAuthenticated,
     currentUser,
     logout,
@@ -52,7 +61,7 @@ export default function Counter() {
     getCustomerPoints
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'active' | 'accepted' | 'history' | 'reports'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'accepted' | 'history' | 'reports' | 'expenses'>('active');
   const [searchInput, setSearchInput] = useState('');
   const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -65,6 +74,10 @@ export default function Counter() {
   const [redeemPoints, setRedeemPoints] = useState(false);
   const [lastPaidData, setLastPaidData] = useState<any>(null);
   const [currentDetailData, setCurrentDetailData] = useState<any>(null);
+  
+  // Expense states
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [newExpense, setNewExpense] = useState({ amount: '', description: '', category: 'other' as Expense['category'] });
 
   // Redirect if not authenticated
   if (!isAuthenticated) {
@@ -437,6 +450,16 @@ export default function Counter() {
               >
                 <BarChart3 className="w-4 h-4" /> Reports
               </button>
+              <button 
+                onClick={() => setActiveTab('expenses')}
+                className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all flex items-center gap-1 ${
+                  activeTab === 'expenses' 
+                    ? 'bg-[#333] text-white' 
+                    : 'bg-white border border-[#ddd] text-[#555]'
+                }`}
+              >
+                <Wallet className="w-4 h-4" /> Expenses
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -603,6 +626,60 @@ export default function Counter() {
           {activeTab === 'reports' && (
             <SalesReport />
           )}
+
+          {/* Expenses Tab */}
+          {activeTab === 'expenses' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Expense Tracking</h3>
+                <Button onClick={() => setExpenseModalOpen(true)} className="bg-[#333] hover:bg-[#333]/90">
+                  <Plus className="w-4 h-4 mr-2" /> Add Expense
+                </Button>
+              </div>
+              <div className="bg-white rounded-lg overflow-hidden shadow-sm">
+                <table className="w-full border-collapse">
+                  <thead className="bg-[#f8f9fa]">
+                    <tr>
+                      <th className="p-4 text-left font-bold text-[#555]">Date</th>
+                      <th className="p-4 text-left font-bold text-[#555]">Category</th>
+                      <th className="p-4 text-left font-bold text-[#555]">Description</th>
+                      <th className="p-4 text-left font-bold text-[#555]">Amount</th>
+                      <th className="p-4 text-left font-bold text-[#555]">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-8 text-[#aaa]">No expenses recorded.</td>
+                      </tr>
+                    ) : (
+                      [...expenses].reverse().map(exp => (
+                        <tr key={exp.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
+                          <td className="p-4">{formatNepalDateTime(exp.createdAt)}</td>
+                          <td className="p-4 capitalize">{exp.category}</td>
+                          <td className="p-4">{exp.description}</td>
+                          <td className="p-4 font-bold text-red-600">-रू{exp.amount}</td>
+                          <td className="p-4">
+                            <Button size="sm" variant="destructive" onClick={() => { deleteExpense(exp.id); toast.success('Deleted'); }}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+                {expenses.length > 0 && (
+                  <div className="p-4 bg-[#f8f9fa] border-t border-[#eee]">
+                    <div className="flex justify-between font-bold">
+                      <span>Total Expenses:</span>
+                      <span className="text-red-600">-रू{expenses.reduce((sum, e) => sum + e.amount, 0)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Bar */}
@@ -753,6 +830,56 @@ export default function Counter() {
               </Button>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Expense Modal */}
+      <Dialog open={expenseModalOpen} onOpenChange={setExpenseModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Expense</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Input
+              type="number"
+              placeholder="Amount"
+              value={newExpense.amount}
+              onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
+            />
+            <Select value={newExpense.category} onValueChange={(v: Expense['category']) => setNewExpense({ ...newExpense, category: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {expenseCategories.map(c => (
+                  <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              placeholder="Description"
+              value={newExpense.description}
+              onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExpenseModalOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              if (!newExpense.amount || !newExpense.description) {
+                toast.error('Please fill all fields');
+                return;
+              }
+              addExpense({
+                amount: parseFloat(newExpense.amount),
+                description: newExpense.description,
+                category: newExpense.category,
+                createdBy: currentUser?.name || 'Counter'
+              });
+              toast.success('Expense added');
+              setNewExpense({ amount: '', description: '', category: 'other' });
+              setExpenseModalOpen(false);
+            }}>
+              Add Expense
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

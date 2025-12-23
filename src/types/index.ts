@@ -88,3 +88,12 @@ export interface DashboardStats {
   activeOrders: number;
   activeTables: number;
 }
+
+export interface Expense {
+  id: string;
+  amount: number;
+  description: string;
+  category: 'ingredients' | 'utilities' | 'salary' | 'maintenance' | 'other';
+  createdAt: string;
+  createdBy: string;
+}
