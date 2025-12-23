@@ -63,60 +63,80 @@ export default function TableOrder() {
   useEffect(() => {
     if (!table || table < 1 || table > settings.tableCount) {
       toast.error('Invalid table number');
-      navigate('/');
+      navigate('/scan');
       return;
     }
 
-    // Check if there's an existing session with a different table
     const sessionKey = 'chiyadani:customerActiveSession';
+    const phoneKey = 'chiyadani:customerPhone';
     const existingSession = localStorage.getItem(sessionKey);
+    const savedPhone = localStorage.getItem(phoneKey);
     
     if (existingSession) {
       try {
-        const session = JSON.parse(existingSession) as { table: number; phone?: string; timestamp: number };
-        // Session expires after 4 hours
-        const sessionAge = Date.now() - session.timestamp;
-        const isExpired = sessionAge > 4 * 60 * 60 * 1000;
+        const session = JSON.parse(existingSession) as { 
+          table: number; 
+          phone?: string; 
+          tableTimestamp?: number;
+          isPhoneEntered?: boolean;
+          timestamp: number 
+        };
         
-        if (!isExpired && session.table !== table) {
+        // Check if table session is still valid (4 hours)
+        const tableTimestamp = session.tableTimestamp || session.timestamp;
+        const tableAge = Date.now() - tableTimestamp;
+        const isTableExpired = tableAge > 4 * 60 * 60 * 1000; // 4 hours
+        
+        if (!isTableExpired && session.table !== table) {
           // User is trying to access a different table via URL manipulation
           toast.error(`You are already at Table ${session.table}. Please use that table's QR code.`);
           navigate(`/table/${session.table}`);
           return;
         }
         
-        if (isExpired) {
-          // Clear expired session
+        if (isTableExpired) {
+          // Table expired - keep phone but redirect to scan
+          if (session.phone || savedPhone) {
+            localStorage.setItem(phoneKey, session.phone || savedPhone || '');
+          }
           localStorage.removeItem(sessionKey);
+          // Re-create session with new table from QR scan
+          localStorage.setItem(sessionKey, JSON.stringify({
+            table,
+            phone: session.phone || savedPhone || '',
+            isPhoneEntered: Boolean(session.phone || savedPhone),
+            tableTimestamp: Date.now(),
+            timestamp: Date.now()
+          }));
+          if (session.phone || savedPhone) {
+            setPhone(session.phone || savedPhone || '');
+            setIsPhoneEntered(true);
+          }
+        } else {
+          // Session still valid
+          if (session.phone && session.phone.length >= 10) {
+            setPhone(session.phone);
+            setIsPhoneEntered(Boolean(session.isPhoneEntered));
+          }
         }
       } catch {
         localStorage.removeItem(sessionKey);
       }
+    } else if (savedPhone && savedPhone.length >= 10) {
+      // No session but have saved phone - create new session
+      localStorage.setItem(sessionKey, JSON.stringify({
+        table,
+        phone: savedPhone,
+        isPhoneEntered: true,
+        tableTimestamp: Date.now(),
+        timestamp: Date.now()
+      }));
+      setPhone(savedPhone);
+      setIsPhoneEntered(true);
     }
     
     setLockedTable(table);
   }, [table, settings.tableCount, navigate]);
-
-  // Keep customer "logged in" (persist phone per table)
-  useEffect(() => {
-    if (!lockedTable) return;
-    
-    const sessionKey = 'chiyadani:customerActiveSession';
-    const existingSession = localStorage.getItem(sessionKey);
-    
-    if (existingSession) {
-      try {
-        const session = JSON.parse(existingSession) as { table: number; phone?: string; isPhoneEntered?: boolean; timestamp: number };
-        // Only restore if same table or create new session
-        if (session.table === lockedTable && session.phone && session.phone.length >= 10) {
-          setPhone(session.phone);
-          setIsPhoneEntered(Boolean(session.isPhoneEntered));
-        }
-      } catch {
-        // ignore invalid session
-      }
-    }
-  }, [lockedTable]);
 
   const categories: Category[] = ['Favorites', 'Tea', 'Snacks', 'Cold Drink', 'Pastry'];
   
@@ -234,10 +254,16 @@ export default function TableOrder() {
     if (lockedTable) {
       // Store unified session with table lock
       const sessionKey = 'chiyadani:customerActiveSession';
+      const phoneKey = 'chiyadani:customerPhone';
+      
+      // Save phone permanently (survives table expiry)
+      localStorage.setItem(phoneKey, phone);
+      
       localStorage.setItem(sessionKey, JSON.stringify({ 
         table: lockedTable, 
         phone, 
         isPhoneEntered: true,
+        tableTimestamp: Date.now(),
         timestamp: Date.now()
       }));
     }
