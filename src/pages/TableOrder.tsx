@@ -12,7 +12,8 @@ import {
   FileText,
   Check,
   Heart,
-  Clock
+  Clock,
+  LogOut
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatNepalTime } from '@/lib/nepalTime';
@@ -379,6 +380,27 @@ export default function TableOrder() {
             >
               <RefreshCw className="w-4 h-4" /> Refresh App
             </button>
+            <button 
+              onClick={() => {
+                // Check if there's unpaid bill
+                if (totalDue > 0) {
+                  toast.error(`Please pay your bill of रू${totalDue} before logging out`);
+                  setDrawerOpen(false);
+                  setBillModalOpen(true);
+                  return;
+                }
+                // Clear session and logout
+                localStorage.removeItem('chiyadani:customerActiveSession');
+                setPhone('');
+                setIsPhoneEntered(false);
+                setCart([]);
+                setDrawerOpen(false);
+                toast.success('Logged out successfully');
+              }}
+              className="w-full bg-[#fff0f0] border border-[#ffcccc] px-3 py-2 rounded-full text-sm font-semibold text-[#e74c3c] flex items-center gap-2 justify-start"
+            >
+              <LogOut className="w-4 h-4" /> Logout
+            </button>
           </div>
         </div>
         <div className="p-5 bg-[#f9f9f9] border-t border-[#eee] text-sm text-[#666]">
@@ -530,6 +552,9 @@ export default function TableOrder() {
                         </button>
                       </div>
                       <p className="font-medium text-[#333]">रू{item.price}</p>
+                      {item.description && (
+                        <p className="text-xs text-[#888] mt-1 line-clamp-2">{item.description}</p>
+                      )}
                       
                       {/* Inline Quantity Control */}
                       <div className="mt-3">
@@ -559,12 +584,20 @@ export default function TableOrder() {
                         )}
                       </div>
                     </div>
-                    <div className="w-[100px] h-[100px] rounded-xl bg-[#eee] overflow-hidden">
-                      <img 
-                        src={`https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=200&auto=format&fit=crop`}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="w-[100px] h-[100px] rounded-xl bg-[#eee] overflow-hidden flex-shrink-0">
+                      {item.image ? (
+                        <img 
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <img 
+                          src={`https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=200&auto=format&fit=crop`}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                     </div>
                   </div>
                 );
