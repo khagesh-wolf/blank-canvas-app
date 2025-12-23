@@ -13,7 +13,6 @@ import {
   LogOut,
   Printer,
   RefreshCw,
-  BarChart3,
   Wallet,
   Plus,
   Trash2,
@@ -22,7 +21,6 @@ import {
 import { toast } from 'sonner';
 import { formatNepalTime, formatNepalDateTime } from '@/lib/nepalTime';
 import FonepayQR from '@/components/FonepayQR';
-import SalesReport from '@/components/SalesReport';
 import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 interface BillGroup {
@@ -66,7 +64,7 @@ export default function Counter() {
     getCustomerPoints
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'active' | 'accepted' | 'history' | 'reports' | 'expenses'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'accepted' | 'history' | 'expenses'>('active');
   const [searchInput, setSearchInput] = useState('');
   const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -493,16 +491,6 @@ export default function Counter() {
                 History
               </button>
               <button 
-                onClick={() => setActiveTab('reports')}
-                className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all flex items-center gap-1 ${
-                  activeTab === 'reports' 
-                    ? 'bg-[#333] text-white' 
-                    : 'bg-white border border-[#ddd] text-[#555]'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" /> Reports
-              </button>
-              <button 
                 onClick={() => setActiveTab('expenses')}
                 className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all flex items-center gap-1 ${
                   activeTab === 'expenses' 
@@ -674,10 +662,6 @@ export default function Counter() {
             </div>
           )}
 
-          {/* Reports Tab */}
-          {activeTab === 'reports' && (
-            <SalesReport />
-          )}
 
           {/* Expenses Tab */}
           {activeTab === 'expenses' && (

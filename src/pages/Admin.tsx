@@ -56,7 +56,15 @@ export default function Admin() {
   const [staffModal, setStaffModal] = useState<{ open: boolean; editing: Staff | null }>({ open: false, editing: null });
   const [newStaff, setNewStaff] = useState({ username: '', password: '', name: '', role: 'counter' as 'admin' | 'counter' });
 
-  // Analytics states
+  // Dashboard date range states
+  const [dashboardDateFrom, setDashboardDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [dashboardDateTo, setDashboardDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // Analytics states (same as dashboard for consistency)
   const [analyticsDateFrom, setAnalyticsDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -104,10 +112,14 @@ export default function Admin() {
       .slice(0, 10);
 
     // Payment methods
+    const cashTransactions = filtered.filter(t => t.paymentMethod === 'cash');
+    const fonepayTransactions = filtered.filter(t => t.paymentMethod === 'fonepay');
     const paymentMethods = [
-      { name: 'Cash', value: filtered.filter(t => t.paymentMethod === 'cash').length },
-      { name: 'Fonepay', value: filtered.filter(t => t.paymentMethod === 'fonepay').length },
+      { name: 'Cash', value: cashTransactions.length },
+      { name: 'Fonepay', value: fonepayTransactions.length },
     ];
+    const cashTotal = cashTransactions.reduce((sum, t) => sum + t.total, 0);
+    const fonepayTotal = fonepayTransactions.reduce((sum, t) => sum + t.total, 0);
 
     // Peak hours
     const hourCounts: Record<number, number> = {};
@@ -120,27 +132,41 @@ export default function Admin() {
       orders: hourCounts[i] || 0
     }));
 
+    const totalRevenue = filtered.reduce((sum, t) => sum + t.total, 0);
+
     return {
-      totalRevenue: filtered.reduce((sum, t) => sum + t.total, 0),
+      totalRevenue,
       totalOrders: filtered.length,
-      avgOrderValue: filtered.length ? Math.round(filtered.reduce((sum, t) => sum + t.total, 0) / filtered.length) : 0,
+      avgOrderValue: filtered.length ? Math.round(totalRevenue / filtered.length) : 0,
       dailyRevenue,
       topItems,
       paymentMethods,
       peakHours,
+      cashTotal,
+      fonepayTotal,
+      uniqueCustomers: new Set(filtered.flatMap(t => t.customerPhones)).size,
       transactions: filtered
     };
   };
 
   const analytics = getAnalyticsData();
 
-  const thisWeekRevenue = transactions
-    .filter(t => {
-      const date = new Date(t.paidAt);
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      return date >= weekAgo;
-    })
-    .reduce((sum, t) => sum + t.total, 0);
+  // Dashboard data with date range filter
+  const getDashboardData = () => {
+    const filtered = transactions.filter(t => {
+      const date = t.paidAt.split('T')[0];
+      return date >= dashboardDateFrom && date <= dashboardDateTo;
+    });
+
+    return {
+      totalRevenue: filtered.reduce((sum, t) => sum + t.total, 0),
+      totalOrders: filtered.length,
+      uniqueCustomers: new Set(filtered.flatMap(t => t.customerPhones)).size,
+      avgOrderValue: filtered.length ? Math.round(filtered.reduce((sum, t) => sum + t.total, 0) / filtered.length) : 0
+    };
+  };
+
+  const dashboardData = getDashboardData();
 
   // Filtered data
   const filteredCustomers = customers.filter(c =>
@@ -419,17 +445,70 @@ export default function Admin() {
         {/* Dashboard */}
         {tab === 'dashboard' && (
           <div className="space-y-6">
+            {/* Date Range Filter */}
+            <div className="flex gap-4 items-center bg-card p-4 rounded-xl border border-border">
+              <Calendar className="w-5 h-5 text-muted-foreground" />
+              <Input
+                type="date"
+                value={dashboardDateFrom}
+                onChange={e => setDashboardDateFrom(e.target.value)}
+                className="w-40"
+              />
+              <span>to</span>
+              <Input
+                type="date"
+                value={dashboardDateTo}
+                onChange={e => setDashboardDateTo(e.target.value)}
+                className="w-40"
+              />
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  const today = new Date().toISOString().split('T')[0];
+                  setDashboardDateFrom(today);
+                  setDashboardDateTo(today);
+                }}
+              >
+                Today
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 7);
+                  setDashboardDateFrom(d.toISOString().split('T')[0]);
+                  setDashboardDateTo(new Date().toISOString().split('T')[0]);
+                }}
+              >
+                Last 7 Days
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 30);
+                  setDashboardDateFrom(d.toISOString().split('T')[0]);
+                  setDashboardDateTo(new Date().toISOString().split('T')[0]);
+                }}
+              >
+                Last 30 Days
+              </Button>
+            </div>
+
             <div className="grid md:grid-cols-4 gap-6">
-              <StatCard icon={DollarSign} label="Today's Revenue" value={`रू ${stats.revenue}`} color="primary" />
-              <StatCard icon={ShoppingBag} label="Orders Today" value={stats.orders.toString()} color="success" />
-              <StatCard icon={TrendingUp} label="This Week" value={`रू ${thisWeekRevenue}`} color="accent" />
-              <StatCard icon={Users} label="Total Customers" value={customers.length.toString()} color="warning" />
+              <StatCard icon={DollarSign} label="Total Revenue" value={`रू ${dashboardData.totalRevenue}`} color="primary" />
+              <StatCard icon={ShoppingBag} label="Total Orders" value={dashboardData.totalOrders.toString()} color="success" />
+              <StatCard icon={TrendingUp} label="Avg Order Value" value={`रू ${dashboardData.avgOrderValue}`} color="accent" />
+              <StatCard icon={Users} label="Unique Customers" value={dashboardData.uniqueCustomers.toString()} color="warning" />
             </div>
 
             {/* Quick Charts */}
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-card p-6 rounded-2xl border border-border">
-                <h3 className="font-bold mb-4">Revenue Trend (Last 7 Days)</h3>
+                <h3 className="font-bold mb-4">Revenue Trend</h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={analytics.dailyRevenue.slice(-7)}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -484,10 +563,37 @@ export default function Admin() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-4 gap-6">
               <StatCard icon={DollarSign} label="Total Revenue" value={`रू ${analytics.totalRevenue}`} color="primary" />
               <StatCard icon={ShoppingBag} label="Total Orders" value={analytics.totalOrders.toString()} color="success" />
               <StatCard icon={TrendingUp} label="Avg Order Value" value={`रू ${analytics.avgOrderValue}`} color="accent" />
+              <StatCard icon={Users} label="Unique Customers" value={analytics.uniqueCustomers.toString()} color="warning" />
+            </div>
+
+            {/* Payment Methods Summary */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="p-6 bg-[#f0f9f4] rounded-2xl border border-[#27ae60]/20">
+                <div className="text-sm text-muted-foreground mb-1">Cash Payments</div>
+                <div className="text-3xl font-bold text-[#27ae60]">
+                  रू {analytics.cashTotal.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {analytics.totalRevenue > 0 
+                    ? `${((analytics.cashTotal / analytics.totalRevenue) * 100).toFixed(0)}% of total` 
+                    : '0%'}
+                </div>
+              </div>
+              <div className="p-6 bg-[#fdf0f4] rounded-2xl border border-[#c32148]/20">
+                <div className="text-sm text-muted-foreground mb-1">Fonepay Payments</div>
+                <div className="text-3xl font-bold text-[#c32148]">
+                  रू {analytics.fonepayTotal.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {analytics.totalRevenue > 0 
+                    ? `${((analytics.fonepayTotal / analytics.totalRevenue) * 100).toFixed(0)}% of total` 
+                    : '0%'}
+                </div>
+              </div>
             </div>
 
             {/* Charts */}
@@ -506,7 +612,7 @@ export default function Admin() {
               </div>
 
               <div className="bg-card p-6 rounded-2xl border border-border">
-                <h3 className="font-bold mb-4">Payment Methods</h3>
+                <h3 className="font-bold mb-4">Payment Methods (Order Count)</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie data={analytics.paymentMethods} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>
