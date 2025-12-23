@@ -467,20 +467,76 @@ export default function Admin() {
   };
 
   const printAllQR = () => {
-    // WiFi QR Code (WIFI:T:WPA;S:SSID;P:PASSWORD;;)
+    // Generate QR codes locally using canvas
+    const generateQRDataURL = (data: string): Promise<string> => {
+      return new Promise((resolve) => {
+        // Create a temporary container for the QR code
+        const tempDiv = document.createElement('div');
+        tempDiv.style.position = 'absolute';
+        tempDiv.style.left = '-9999px';
+        document.body.appendChild(tempDiv);
+        
+        // Import QRCode and render to canvas
+        import('qrcode.react').then(({ QRCodeCanvas }) => {
+          const React = require('react');
+          const ReactDOM = require('react-dom/client');
+          
+          const root = ReactDOM.createRoot(tempDiv);
+          root.render(React.createElement(QRCodeCanvas, { 
+            value: data, 
+            size: 120,
+            level: 'M'
+          }));
+          
+          setTimeout(() => {
+            const canvas = tempDiv.querySelector('canvas');
+            if (canvas) {
+              resolve(canvas.toDataURL('image/png'));
+            } else {
+              resolve('');
+            }
+            root.unmount();
+            document.body.removeChild(tempDiv);
+          }, 100);
+        });
+      });
+    };
+
+    // WiFi QR Code data
     const wifiQRData = settings.wifiSSID 
       ? `WIFI:T:WPA;S:${settings.wifiSSID};P:${settings.wifiPassword};;`
       : '';
+
+    // Generate all QR codes first, then open print window
+    const generateAllQRCodes = async () => {
+      const tableQRs: { tableNum: number; tableQR: string; wifiQR: string }[] = [];
+      
+      // Generate WiFi QR once if configured
+      let wifiQR = '';
+      if (settings.wifiSSID) {
+        wifiQR = await generateQRDataURL(wifiQRData);
+      }
+      
+      // Generate table QRs
+      for (let i = 1; i <= settings.tableCount; i++) {
+        const tableURL = `${settings.baseUrl || window.location.origin}/table/${i}`;
+        const tableQR = await generateQRDataURL(tableURL);
+        tableQRs.push({ tableNum: i, tableQR, wifiQR });
+      }
+      
+      return tableQRs;
+    };
+
+    toast.info('Generating QR codes...');
     
-    // Each table card has WiFi QR on top and Table QR below
-    const tableCards = Array.from({ length: settings.tableCount }, (_, i) => i + 1)
-      .map(num => `
+    generateAllQRCodes().then((qrData) => {
+      const tableCards = qrData.map(({ tableNum, tableQR, wifiQR }) => `
         <div style="page-break-inside: avoid; text-align: center; padding: 20px; border: 1px solid #ddd; border-radius: 12px; background: #fff; width: 200px; margin: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
           <!-- WiFi QR Section -->
           <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #ddd;">
             <p style="margin: 0 0 8px; font-size: 12px; font-weight: bold; color: #333;">📶 Free WiFi</p>
-            ${settings.wifiSSID ? `
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(wifiQRData)}" style="display: block; margin: 0 auto;" />
+            ${wifiQR ? `
+              <img src="${wifiQR}" style="display: block; margin: 0 auto; width: 120px; height: 120px;" />
               <p style="margin: 6px 0 0; font-size: 9px; color: #666;">${settings.wifiSSID}</p>
             ` : `
               <div style="width: 120px; height: 120px; background: #f5f5f5; margin: 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
@@ -491,46 +547,47 @@ export default function Admin() {
           
           <!-- Table QR Section -->
           <div>
-            <p style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #333;">🍵 Table ${num}</p>
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`${settings.baseUrl || window.location.origin}/table/${num}`)}" style="display: block; margin: 0 auto;" />
+            <p style="margin: 0 0 8px; font-size: 14px; font-weight: bold; color: #333;">🍵 Table ${tableNum}</p>
+            <img src="${tableQR}" style="display: block; margin: 0 auto; width: 120px; height: 120px;" />
             <p style="margin: 8px 0 0; font-size: 10px; color: #666;">${settings.restaurantName}</p>
           </div>
         </div>
       `).join('');
-    
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-        <head>
-          <title>QR Codes - ${settings.restaurantName}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f9f9f9; }
-            .cards-grid { display: flex; flex-wrap: wrap; justify-content: center; }
-            @media print { 
-              body { padding: 10px; background: white; } 
-              .cards-grid { gap: 5px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div style="text-align: center; margin-bottom: 20px;">
-            <h1 style="margin: 0 0 5px; font-size: 24px;">${settings.restaurantName}</h1>
-            <p style="margin: 0; color: #666; font-size: 14px;">Table QR Cards</p>
-          </div>
-          <div class="cards-grid">
-            ${tableCards}
-          </div>
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-      // Wait for images to load before printing
-      setTimeout(() => {
-        printWindow.print();
-      }, 1000);
-    }
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+          <head>
+            <title>QR Codes - ${settings.restaurantName}</title>
+            <style>
+              * { box-sizing: border-box; }
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f9f9f9; }
+              .cards-grid { display: flex; flex-wrap: wrap; justify-content: center; }
+              @media print { 
+                body { padding: 10px; background: white; } 
+                .cards-grid { gap: 5px; }
+              }
+            </style>
+          </head>
+          <body>
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h1 style="margin: 0 0 5px; font-size: 24px;">${settings.restaurantName}</h1>
+              <p style="margin: 0; color: #666; font-size: 14px;">Table QR Cards</p>
+            </div>
+            <div class="cards-grid">
+              ${tableCards}
+            </div>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
+        // QR images are already data URLs, so we can print immediately
+        setTimeout(() => {
+          printWindow.print();
+        }, 300);
+      }
+    });
   };
 
   const navItems = [
