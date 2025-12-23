@@ -210,7 +210,15 @@ export default function TableOrder() {
     if (cat === 'Favorites') return; // No scroll for favorites
     const el = document.getElementById(`cat-${cat}`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Calculate offset for sticky header (52px) + category pills (~60px)
+      const headerOffset = 120;
+      const elementPosition = el.getBoundingClientRect().top + window.scrollY;
+      const offsetPosition = elementPosition - headerOffset;
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
     }
   };
 
