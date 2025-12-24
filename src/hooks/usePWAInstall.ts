@@ -27,6 +27,8 @@ export function usePWAInstall() {
       setIsInstalled(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
+      // Set localStorage flag for future detection
+      localStorage.setItem('chiyadani:pwaInstalled', 'true');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

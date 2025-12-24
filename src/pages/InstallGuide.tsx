@@ -8,12 +8,15 @@ const isIOS = () => {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 };
 
-// Check if running as PWA
+// Check if running as PWA (works for both iOS and Android)
 const isPWAMode = () => {
   const isIOSStandalone = (window.navigator as any).standalone === true;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
   const isFullscreen = window.matchMedia('(display-mode: fullscreen)').matches;
-  return isIOSStandalone || isStandalone || isFullscreen;
+  const isPWALaunch = new URLSearchParams(window.location.search).get('source') === 'pwa';
+  const wasInstalled = localStorage.getItem('chiyadani:pwaInstalled') === 'true';
+  
+  return isIOSStandalone || isStandalone || isFullscreen || isPWALaunch || wasInstalled;
 };
 
 export default function InstallGuide() {
@@ -308,6 +311,20 @@ export default function InstallGuide() {
             </div>
           </div>
         )}
+
+        {/* Already installed helper */}
+        <div className="mt-8 text-center">
+          <p className="text-gray-500 text-sm mb-3">Already added to home screen?</p>
+          <button
+            onClick={() => {
+              localStorage.setItem('chiyadani:pwaInstalled', 'true');
+              navigate('/scan');
+            }}
+            className="text-amber-400 text-sm font-medium underline underline-offset-4"
+          >
+            I've already installed it →
+          </button>
+        </div>
 
         {/* Bottom spacing */}
         <div className="h-20" />

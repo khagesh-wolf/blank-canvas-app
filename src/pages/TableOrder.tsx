@@ -53,8 +53,14 @@ const isPWAMode = () => {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
   // Also check for fullscreen mode
   const isFullscreen = window.matchMedia('(display-mode: fullscreen)').matches;
+  // Check if launched from PWA (URL param check)
+  const isPWALaunch = new URLSearchParams(window.location.search).get('source') === 'pwa';
+  // Check if referrer is empty (typical for PWA launches) and not in iframe
+  const isDirectLaunch = document.referrer === '' && window.self === window.top;
+  // Check localStorage flag set when installed
+  const wasInstalled = localStorage.getItem('chiyadani:pwaInstalled') === 'true';
   
-  return isIOSStandalone || isStandalone || isFullscreen;
+  return isIOSStandalone || isStandalone || isFullscreen || isPWALaunch || wasInstalled;
 };
 
 export default function TableOrder() {
