@@ -164,7 +164,15 @@ export const useStore = create<StoreState>()((set, get) => ({
   setMenuItems: (items) => set({ menuItems: items }),
 
   addMenuItem: (item) => {
-    const newItem = { ...item, id: generateId() };
+    const newItem = { 
+      id: generateId(),
+      name: item.name,
+      price: item.price,
+      category: item.category,
+      available: item.available ?? true,
+      description: item.description || '',
+      image: item.image || ''
+    };
     set((state) => ({ menuItems: [...state.menuItems, newItem] }));
     syncToBackend(() => menuApi.create(newItem));
   },
