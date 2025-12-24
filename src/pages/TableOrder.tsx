@@ -378,9 +378,11 @@ export default function TableOrder() {
         <div className="p-5 flex-1">
           <div className="bg-[#fff8e1] p-4 rounded-xl border border-[#ffe0b2] mb-5">
             <span className="font-bold text-lg block mb-1">{phone}</span>
-            <div className="text-[#f39c12] font-semibold flex items-center gap-1">
-              ⭐ {customerPoints} Points
-            </div>
+            {settings.pointSystemEnabled && (
+              <div className="text-[#f39c12] font-semibold flex items-center gap-1">
+                ⭐ {customerPoints} Points
+              </div>
+            )}
             <div className="font-semibold text-[#7f8c8d] text-sm mt-2">
               Table {table}
             </div>

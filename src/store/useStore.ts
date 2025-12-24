@@ -478,7 +478,13 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   // Settings - uses defaults until loaded from backend
   settings: defaultSettings,
-  setSettings: (settings) => set({ settings: { ...defaultSettings, ...(settings || {}) } }),
+  setSettings: (settings) => set((state) => ({ 
+    settings: { 
+      ...defaultSettings, 
+      ...state.settings, // Preserve current state
+      ...(settings || {}) // Apply new settings on top
+    } 
+  })),
 
   updateSettings: (newSettings) => {
     set((state) => ({
