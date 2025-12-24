@@ -22,6 +22,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useHapticFeedback, playOrderSuccessSound } from '@/hooks/useHapticFeedback';
+import { Confetti } from '@/components/Confetti';
 import { toast } from 'sonner';
 import { formatNepalTime } from '@/lib/nepalTime';
 import { useFavorites } from '@/hooks/useFavorites';
@@ -50,8 +51,9 @@ export default function TableOrder() {
   const [cartModalOpen, setCartModalOpen] = useState(false);
   const [billModalOpen, setBillModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
-
+  const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
   const table = parseInt(tableNumber || '0');
   
   // Favorites hook
@@ -218,6 +220,9 @@ export default function TableOrder() {
 
   const addToCart = (item: typeof menuItems[0]) => {
     hapticAddToCart();
+    setLastAddedItemId(item.id);
+    setTimeout(() => setLastAddedItemId(null), 400);
+    
     const existing = cart.find(c => c.menuItemId === item.id);
     if (existing) {
       setCart(cart.map(c =>
@@ -324,6 +329,8 @@ export default function TableOrder() {
     // Haptic feedback and sound for order success
     hapticOrderPlaced();
     playOrderSuccessSound();
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
     
     setCart([]);
     setSpecialInstructions('');
@@ -412,6 +419,7 @@ export default function TableOrder() {
   // Main ordering interface
   return (
     <div className="min-h-screen bg-white pb-24 select-none">
+      <Confetti isActive={showConfetti} />
       {/* Header */}
       <header className="grid grid-cols-[auto_1fr_auto] items-center px-4 py-2.5 bg-white sticky top-0 z-[999] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
         <div className="flex items-center gap-2">
@@ -630,7 +638,7 @@ export default function TableOrder() {
                         {qty === 0 ? (
                           <button
                             onClick={() => addToCart(item)}
-                            className="bg-white border border-[#ddd] text-[#06C167] font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow"
+                            className={`bg-white border border-[#ddd] text-[#06C167] font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow ${lastAddedItemId === item.id ? 'cart-bounce' : ''}`}
                           >
                             ADD
                           </button>
@@ -721,7 +729,7 @@ export default function TableOrder() {
                         ) : qty === 0 ? (
                           <button
                             onClick={() => addToCart(item)}
-                            className="bg-white border border-[#ddd] text-[#06C167] font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow"
+                            className={`bg-white border border-[#ddd] text-[#06C167] font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow ${lastAddedItemId === item.id ? 'cart-bounce' : ''}`}
                           >
                             ADD
                           </button>
