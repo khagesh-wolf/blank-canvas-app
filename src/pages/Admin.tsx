@@ -1206,7 +1206,52 @@ export default function Admin() {
                     </div>
                     <div>
                       <label className="text-sm font-medium">Base URL (for QR codes)</label>
-                      <Input value={settings.baseUrl} onChange={e => updateSettings({ baseUrl: e.target.value })} placeholder={window.location.origin} />
+                      <div className="flex gap-2">
+                        <Input 
+                          value={settings.baseUrl} 
+                          onChange={e => updateSettings({ baseUrl: e.target.value })} 
+                          placeholder={window.location.origin} 
+                          className="flex-1"
+                        />
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            // Try to get hostname for mDNS
+                            const hostname = window.location.hostname;
+                            const port = window.location.port;
+                            const protocol = window.location.protocol;
+                            
+                            // If already using .local or a domain, keep it
+                            if (hostname.endsWith('.local') || hostname.includes('.')) {
+                              const url = `${protocol}//${hostname}${port ? ':' + port : ''}`;
+                              updateSettings({ baseUrl: url });
+                              toast.success('Base URL set to: ' + url);
+                            } else {
+                              // Show dialog to enter hostname
+                              const computerName = prompt(
+                                'Enter your computer hostname (found in System Settings):\n\n' +
+                                'Windows: Settings → System → About → Device name\n' +
+                                'Mac: System Preferences → Sharing → Computer Name\n' +
+                                'Linux: Run "hostname" in terminal\n\n' +
+                                'Example: my-laptop'
+                              );
+                              if (computerName) {
+                                const localUrl = `${protocol}//${computerName.toLowerCase().replace(/\s+/g, '-')}.local${port ? ':' + port : ''}`;
+                                updateSettings({ baseUrl: localUrl });
+                                toast.success('Base URL set to: ' + localUrl);
+                              }
+                            }
+                          }}
+                        >
+                          Use Hostname
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Use hostname.local instead of IP to avoid issues when IP changes. 
+                        Click "Use Hostname" to set up.
+                      </p>
                     </div>
                   </div>
                 </div>
