@@ -432,6 +432,12 @@ export default function TableOrder() {
         </div>
         
         <div className="justify-self-end flex items-center gap-2">
+          {queueLength > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-[#fff3e0] rounded-full text-xs text-[#e65100] whitespace-nowrap">
+              <Clock className="w-3 h-3" />
+              ~{formatWaitTime(estimatedWait)}
+            </div>
+          )}
           <div className="text-sm bg-[#f6f6f6] px-3 py-1.5 rounded-full font-medium">
             Table {table}
           </div>
@@ -584,13 +590,6 @@ export default function TableOrder() {
           </button>
         ))}
         
-        {/* Wait Time Badge */}
-        {queueLength > 0 && (
-          <div className="flex items-center gap-1 px-3 py-2 bg-[#fff3e0] rounded-full text-sm text-[#e65100] whitespace-nowrap">
-            <Clock className="w-3 h-3" />
-            ~{formatWaitTime(estimatedWait)} wait
-          </div>
-        )}
       </div>
 
       {/* Menu Feed */}
