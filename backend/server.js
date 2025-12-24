@@ -147,6 +147,17 @@ async function initDatabase() {
     );
   `);
   
+  db.run(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      bill_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (bill_id) REFERENCES bills(id)
+    );
+  `);
+  
   db.run(`INSERT OR IGNORE INTO settings (id) VALUES (1);`);
   
   saveDatabase();
@@ -358,10 +369,26 @@ app.put('/api/bills/:id/pay', (req, res) => {
   res.json({ success: true });
 });
 
-// ============ TRANSACTIONS (stub) ============
-// Frontend expects this endpoint during initial sync.
+// ============ TRANSACTIONS ============
 app.get('/api/transactions', (req, res) => {
-  res.json([]);
+  const transactions = queryAll('SELECT * FROM transactions');
+  res.json(transactions.map(t => ({
+    id: t.id,
+    billId: t.bill_id,
+    amount: t.amount,
+    paymentMethod: t.payment_method,
+    createdAt: t.created_at
+  })));
+});
+
+app.post('/api/transactions', (req, res) => {
+  const { id, billId, amount, paymentMethod, createdAt } = req.body;
+  runQuery(`
+    INSERT INTO transactions (id, bill_id, amount, payment_method, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `, [id, billId, amount, paymentMethod, createdAt]);
+  broadcast('TRANSACTION_UPDATE', { action: 'add', transaction: req.body });
+  res.json({ success: true });
 });
 
 // ============ CUSTOMERS ============
