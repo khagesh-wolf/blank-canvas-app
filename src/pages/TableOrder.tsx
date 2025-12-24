@@ -18,8 +18,10 @@ import {
   Instagram,
   Facebook,
   Star,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Trash2
 } from 'lucide-react';
+import { useHapticFeedback, playOrderSuccessSound } from '@/hooks/useHapticFeedback';
 import { toast } from 'sonner';
 import { formatNepalTime } from '@/lib/nepalTime';
 import { useFavorites } from '@/hooks/useFavorites';
@@ -57,6 +59,9 @@ export default function TableOrder() {
   
   // Wait time hook
   const { formatWaitTime, getWaitTimeForNewOrder, queueLength } = useWaitTime();
+
+  // Haptic feedback hook
+  const { hapticAddToCart, hapticQuantityChange, hapticDeleteItem, hapticOrderPlaced } = useHapticFeedback();
 
   // Get the table number that was originally scanned (stored in session)
   const [lockedTable, setLockedTable] = useState<number | null>(null);
@@ -212,6 +217,7 @@ export default function TableOrder() {
   const customerPoints = phone ? getCustomerPoints(phone) : 0;
 
   const addToCart = (item: typeof menuItems[0]) => {
+    hapticAddToCart();
     const existing = cart.find(c => c.menuItemId === item.id);
     if (existing) {
       setCart(cart.map(c =>
@@ -229,6 +235,7 @@ export default function TableOrder() {
   };
 
   const updateQty = (menuItemId: string, delta: number) => {
+    hapticQuantityChange();
     setCart(cart.map(c => {
       if (c.menuItemId === menuItemId) {
         const newQty = c.qty + delta;
@@ -246,6 +253,12 @@ export default function TableOrder() {
       return true;
     }));
   };
+
+  const removeFromCart = (menuItemId: string) => {
+    hapticDeleteItem();
+    setCart(cart.filter(c => c.menuItemId !== menuItemId));
+  };
+
 
   const getItemQty = (menuItemId: string) => {
     return cart.find(c => c.menuItemId === menuItemId)?.qty || 0;
@@ -307,6 +320,10 @@ export default function TableOrder() {
       : undefined;
     
     addOrder(table, phone, cart, sanitizedInstructions);
+    
+    // Haptic feedback and sound for order success
+    hapticOrderPlaced();
+    playOrderSuccessSound();
     
     setCart([]);
     setSpecialInstructions('');
@@ -759,23 +776,32 @@ export default function TableOrder() {
             
             {cart.map(item => (
               <div key={item.id} className="flex justify-between items-center mb-4 pb-3 border-b border-[#eee]">
-                <div>
+                <div className="flex-1">
                   <div className="font-semibold">{item.name}</div>
                   <div className="text-[#666] text-sm">रू{item.price}</div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => updateQty(item.menuItemId, -1)}
+                      className="w-8 h-8 rounded-full bg-[#eee] font-bold flex items-center justify-center"
+                    >
+                      -
+                    </button>
+                    <span className="font-medium w-4 text-center">{item.qty}</span>
+                    <button 
+                      onClick={() => updateQty(item.menuItemId, 1)}
+                      className="w-8 h-8 rounded-full bg-[#eee] font-bold flex items-center justify-center"
+                    >
+                      +
+                    </button>
+                  </div>
                   <button 
-                    onClick={() => updateQty(item.menuItemId, -1)}
-                    className="w-8 h-8 rounded-full bg-[#eee] font-bold flex items-center justify-center"
+                    onClick={() => removeFromCart(item.menuItemId)}
+                    className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition-colors"
+                    aria-label="Remove item"
                   >
-                    -
-                  </button>
-                  <span className="font-medium">{item.qty}</span>
-                  <button 
-                    onClick={() => updateQty(item.menuItemId, 1)}
-                    className="w-8 h-8 rounded-full bg-[#eee] font-bold flex items-center justify-center"
-                  >
-                    +
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
