@@ -1983,7 +1983,7 @@ function StatCard({ icon: Icon, label, value, color }: {
   const colorClasses = {
     primary: 'text-primary bg-primary/15',
     success: 'text-success bg-success/15',
-    accent: 'text-secondary bg-secondary/15',
+    accent: 'text-violet-600 bg-violet-100',
     warning: 'text-warning bg-warning/15',
   };
 
@@ -1992,7 +1992,7 @@ function StatCard({ icon: Icon, label, value, color }: {
       <div className={`w-12 h-12 rounded-xl ${colorClasses[color]} flex items-center justify-center mb-4 transition-transform group-hover:scale-110`}>
         <Icon className="w-6 h-6" />
       </div>
-      <p className="font-serif text-2xl font-bold">{value}</p>
+      <p className="text-2xl md:text-3xl font-bold tracking-tight">{value}</p>
       <p className="text-sm text-muted-foreground mt-1">{label}</p>
     </div>
   );
