@@ -513,7 +513,6 @@ export default function Admin() {
       <html>
       <head>
         <title>QR Codes - ${settings.restaurantName}</title>
-        <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; background: #f9f9f9; }
@@ -539,32 +538,42 @@ export default function Admin() {
           .qr-container { width: 120px; height: 120px; margin: 0 auto; }
           .qr-container canvas { width: 100% !important; height: 100% !important; }
           .no-wifi { width: 120px; height: 120px; background: #f5f5f5; margin: 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 10px; color: #999; }
+          .loading { text-align: center; padding: 50px; font-size: 18px; color: #666; }
           @media print { 
             body { padding: 10px; background: white; } 
             .card { box-shadow: none; border: 1px solid #ccc; }
+            .loading { display: none; }
           }
         </style>
       </head>
       <body>
-        <div class="header">
+        <div class="loading" id="loading">Loading QR codes...</div>
+        <div class="header" style="display:none" id="mainContent">
           <h1>${settings.restaurantName}</h1>
           <p>Table QR Cards</p>
         </div>
-        <div class="cards-grid" id="cards"></div>
+        <div class="cards-grid" id="cards" style="display:none"></div>
         <script>
           const tables = ${JSON.stringify(tables)};
           const wifiData = ${JSON.stringify(wifiQRData)};
           const wifiSSID = ${JSON.stringify(settings.wifiSSID || '')};
           const restaurantName = ${JSON.stringify(settings.restaurantName)};
           
-          function waitForQRCode(callback, attempts = 0) {
-            if (typeof QRCode !== 'undefined') {
-              callback();
-            } else if (attempts < 50) {
-              setTimeout(() => waitForQRCode(callback, attempts + 1), 100);
-            } else {
-              console.error('QRCode library failed to load');
-            }
+          function loadQRScript() {
+            return new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+              script.onload = () => resolve();
+              script.onerror = () => {
+                // Try alternative CDN
+                const altScript = document.createElement('script');
+                altScript.src = 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js';
+                altScript.onload = () => resolve();
+                altScript.onerror = () => reject(new Error('Failed to load QRCode library'));
+                document.head.appendChild(altScript);
+              };
+              document.head.appendChild(script);
+            });
           }
           
           async function generateCards() {
@@ -637,12 +646,20 @@ export default function Admin() {
               }
             }
             
-            // Auto-print after generation
+            // Show content and auto-print after generation
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('cards').style.display = 'flex';
             setTimeout(() => window.print(), 500);
           }
           
-          // Wait for QRCode library to load before generating
-          waitForQRCode(generateCards);
+          // Load QRCode library then generate cards
+          loadQRScript()
+            .then(() => generateCards())
+            .catch(err => {
+              document.getElementById('loading').textContent = 'Error: Failed to load QR code library. Please check your internet connection.';
+              console.error(err);
+            });
         <\/script>
       </body>
       </html>

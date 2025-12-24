@@ -128,9 +128,14 @@ async function initDatabase() {
   
   // Migration: Add counter_as_admin column if it doesn't exist
   try {
-    db.run(`ALTER TABLE settings ADD COLUMN counter_as_admin INTEGER DEFAULT 0`);
+    const columns = db.pragma('table_info(settings)');
+    const hasColumn = columns.some(col => col.name === 'counter_as_admin');
+    if (!hasColumn) {
+      db.exec(`ALTER TABLE settings ADD COLUMN counter_as_admin INTEGER DEFAULT 0`);
+      console.log('[DB] Added counter_as_admin column to settings table');
+    }
   } catch (e) {
-    // Column already exists, ignore
+    console.error('[DB] Migration error:', e.message);
   }
   
   db.run(`
