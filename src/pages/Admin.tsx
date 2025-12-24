@@ -10,7 +10,7 @@ import {
   Plus, Edit, Trash2, LogOut, Settings, LayoutDashboard, 
   UtensilsCrossed, Users, QrCode, History, TrendingUp, ShoppingBag, DollarSign,
   Download, Search, Eye, UserCog, BarChart3, Calendar, Image as ImageIcon, ToggleLeft, ToggleRight,
-  Check, X
+  Check, X, Menu as MenuIcon
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -58,6 +58,9 @@ export default function Admin() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
+
+  // Mobile menu state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Menu search and bulk selection
   const [menuSearch, setMenuSearch] = useState('');
@@ -683,9 +686,53 @@ export default function Admin() {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar - Premium Dark Theme */}
-      <aside className="w-72 sidebar flex flex-col sticky top-0 h-screen">
+    <div className="min-h-screen bg-background flex flex-col lg:flex-row">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-sidebar text-sidebar-foreground p-4 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center">
+            <span className="text-primary-foreground font-bold">C</span>
+          </div>
+          <span className="font-serif font-bold">{settings.restaurantName}</span>
+        </div>
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="text-sidebar-foreground"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? <X className="w-6 h-6" /> : <MenuIcon className="w-6 h-6" />}
+        </Button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 top-16 bg-sidebar z-40 overflow-y-auto">
+          <nav className="p-4 space-y-1">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => { setTab(item.id); setMobileMenuOpen(false); }}
+                className={`w-full nav-item ${tab === item.id ? 'nav-item-active' : 'nav-item-inactive'}`}
+              >
+                <item.icon className="w-5 h-5" /> {item.label}
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-sidebar-border">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-xl" 
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4 mr-3" /> Logout
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Sidebar - Premium Dark Theme (Desktop only) */}
+      <aside className="hidden lg:flex w-72 sidebar flex-col sticky top-0 h-screen flex-shrink-0">
         <div className="sidebar-header">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 gradient-primary rounded-2xl flex items-center justify-center shadow-warm">
@@ -720,11 +767,11 @@ export default function Admin() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto flex flex-col">
-        <div className="mb-8 flex items-center justify-between">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto flex flex-col min-w-0">
+        <div className="mb-6 md:mb-8 flex items-center justify-between">
           <div>
-            <h1 className="font-serif text-2xl font-bold text-foreground">{navItems.find(n => n.id === tab)?.label}</h1>
-            <p className="text-sm text-muted-foreground mt-1">{formatNepalDateTime(new Date())}</p>
+            <h1 className="font-serif text-xl md:text-2xl font-bold text-foreground">{navItems.find(n => n.id === tab)?.label}</h1>
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">{formatNepalDateTime(new Date())}</p>
           </div>
         </div>
         <div className="flex-1">
@@ -733,7 +780,7 @@ export default function Admin() {
         {tab === 'dashboard' && (
           <div className="space-y-6">
             {/* Date Range Filter */}
-            <div className="flex gap-4 items-center bg-card p-4 rounded-xl border border-border">
+            <div className="flex flex-wrap gap-2 md:gap-4 items-center bg-card p-3 md:p-4 rounded-xl border border-border">
               <Calendar className="w-5 h-5 text-muted-foreground" />
               <Input
                 type="date"

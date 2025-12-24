@@ -30,17 +30,15 @@ import {
   sanitizeText 
 } from '@/lib/validation';
 
-type Category = 'Tea' | 'Snacks' | 'Cold Drink' | 'Pastry' | 'Favorites';
-
 export default function TableOrder() {
   const { tableNumber } = useParams();
   const navigate = useNavigate();
-  const { menuItems, settings, addOrder, getCustomerPoints, updateOrderStatus, callWaiter, waiterCalls } = useStore();
+  const { menuItems, categories, settings, addOrder, getCustomerPoints, updateOrderStatus, callWaiter, waiterCalls } = useStore();
   
   const [phone, setPhone] = useState('');
   const [isPhoneEntered, setIsPhoneEntered] = useState(false);
   const [cart, setCart] = useState<OrderItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<Category>('Tea');
+  const [activeCategory, setActiveCategory] = useState<string>('Favorites');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [cartModalOpen, setCartModalOpen] = useState(false);
@@ -138,7 +136,8 @@ export default function TableOrder() {
     setLockedTable(table);
   }, [table, settings.tableCount, navigate]);
 
-  const categories: Category[] = ['Favorites', 'Tea', 'Snacks', 'Cold Drink', 'Pastry'];
+  // Build category list: Favorites + dynamic categories from store
+  const categoryNames = ['Favorites', ...categories.map(c => c.name)];
   
   // Get favorite items
   const favoriteItems = menuItems.filter(item => favorites.includes(item.id) && item.available);
@@ -269,7 +268,7 @@ export default function TableOrder() {
     setIsSubmitting(false);
   };
 
-  const scrollToCategory = (cat: Category) => {
+  const scrollToCategory = (cat: string) => {
     setActiveCategory(cat);
     if (cat === 'Favorites') return; // No scroll for favorites
     const el = document.getElementById(`cat-${cat}`);
@@ -509,7 +508,7 @@ export default function TableOrder() {
 
       {/* Category Pills */}
       <div className="sticky top-[52px] bg-white px-5 py-4 flex gap-2.5 overflow-x-auto z-[998] shadow-[0_4px_10px_rgba(0,0,0,0.05)] scrollbar-hide">
-        {categories.map(cat => (
+        {categoryNames.map(cat => (
           <button
             key={cat}
             onClick={() => scrollToCategory(cat)}
@@ -619,7 +618,7 @@ export default function TableOrder() {
         )}
 
         {/* Regular Categories */}
-        {categories.filter(c => c !== 'Favorites').map(cat => {
+        {categoryNames.filter(c => c !== 'Favorites').map(cat => {
           if (activeCategory === 'Favorites') return null;
           const items = menuItems.filter(item => item.category === cat && item.available);
           if (items.length === 0) return null;

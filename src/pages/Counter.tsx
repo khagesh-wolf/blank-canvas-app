@@ -366,9 +366,9 @@ export default function Counter() {
   };
 
   return (
-    <div className="flex h-screen bg-[#f0f2f5] overflow-hidden">
-      {/* Sidebar - Incoming Orders & Waiter Calls - 3D Enhanced */}
-      <div className="w-[350px] text-white flex flex-col relative overflow-hidden"
+    <div className="flex flex-col lg:flex-row h-screen bg-[#f0f2f5] overflow-hidden">
+      {/* Sidebar - Incoming Orders & Waiter Calls - Hidden on mobile, shown on lg+ */}
+      <div className="hidden lg:flex w-[350px] text-white flex-col relative overflow-hidden flex-shrink-0"
         style={{
           background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
           boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.3), 4px 0 20px rgba(0,0,0,0.4)'
@@ -519,73 +519,75 @@ export default function Counter() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-white p-5 shadow-sm flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-bold m-0">Counter</h2>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setActiveTab('active')}
-                className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all ${
-                  activeTab === 'active' 
-                    ? 'bg-[#333] text-white' 
-                    : 'bg-white border border-[#ddd] text-[#555]'
-                }`}
-              >
-                Active Bills
-              </button>
-              <button 
-                onClick={() => setActiveTab('accepted')}
-                className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all ${
-                  activeTab === 'accepted' 
-                    ? 'bg-[#333] text-white' 
-                    : 'bg-white border border-[#ddd] text-[#555]'
-                }`}
-              >
-                Accepted Orders
-              </button>
-              <button 
-                onClick={() => setActiveTab('history')}
-                className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all ${
-                  activeTab === 'history' 
-                    ? 'bg-[#333] text-white' 
-                    : 'bg-white border border-[#ddd] text-[#555]'
-                }`}
-              >
-                History
-              </button>
-              <button 
-                onClick={() => setActiveTab('expenses')}
-                className={`px-5 py-2.5 rounded-full font-semibold text-sm transition-all flex items-center gap-1 ${
-                  activeTab === 'expenses' 
-                    ? 'bg-[#333] text-white' 
-                    : 'bg-white border border-[#ddd] text-[#555]'
-                }`}
-              >
-                <Wallet className="w-4 h-4" /> Expenses
-              </button>
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Header - Responsive */}
+        <div className="bg-white p-3 md:p-5 shadow-sm">
+          {/* Top row: Title and actions */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-lg md:text-xl font-bold m-0 whitespace-nowrap">Counter</h2>
+            <div className="flex items-center gap-2">
+              <Input 
+                type="text"
+                placeholder="Search..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-24 md:w-48"
+              />
+              <Button variant="outline" size="icon" onClick={() => window.location.reload()}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+              {settings.counterAsAdmin && (
+                <Button variant="outline" size="icon" onClick={() => navigate('/admin')} className="bg-primary/10 border-primary text-primary hover:bg-primary/20">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              )}
+              <Button variant="outline" size="icon" onClick={handleLogout}>
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Input 
-              type="text"
-              placeholder="Table No or Phone"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-48"
-            />
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-            {settings.counterAsAdmin && (
-              <Button variant="outline" onClick={() => navigate('/admin')} className="bg-primary/10 border-primary text-primary hover:bg-primary/20">
-                <Settings className="w-4 h-4 mr-2" /> Admin Panel
-              </Button>
-            )}
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" /> Logout
-            </Button>
+          {/* Tabs row - scrollable on mobile */}
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            <button 
+              onClick={() => setActiveTab('active')}
+              className={`px-3 md:px-5 py-2 rounded-full font-semibold text-xs md:text-sm transition-all whitespace-nowrap flex-shrink-0 ${
+                activeTab === 'active' 
+                  ? 'bg-[#333] text-white' 
+                  : 'bg-white border border-[#ddd] text-[#555]'
+              }`}
+            >
+              Active Bills
+            </button>
+            <button 
+              onClick={() => setActiveTab('accepted')}
+              className={`px-3 md:px-5 py-2 rounded-full font-semibold text-xs md:text-sm transition-all whitespace-nowrap flex-shrink-0 ${
+                activeTab === 'accepted' 
+                  ? 'bg-[#333] text-white' 
+                  : 'bg-white border border-[#ddd] text-[#555]'
+              }`}
+            >
+              Accepted
+            </button>
+            <button 
+              onClick={() => setActiveTab('history')}
+              className={`px-3 md:px-5 py-2 rounded-full font-semibold text-xs md:text-sm transition-all whitespace-nowrap flex-shrink-0 ${
+                activeTab === 'history' 
+                  ? 'bg-[#333] text-white' 
+                  : 'bg-white border border-[#ddd] text-[#555]'
+              }`}
+            >
+              History
+            </button>
+            <button 
+              onClick={() => setActiveTab('expenses')}
+              className={`px-3 md:px-5 py-2 rounded-full font-semibold text-xs md:text-sm transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
+                activeTab === 'expenses' 
+                  ? 'bg-[#333] text-white' 
+                  : 'bg-white border border-[#ddd] text-[#555]'
+              }`}
+            >
+              <Wallet className="w-3 h-3 md:w-4 md:h-4" /> Expenses
+            </button>
           </div>
         </div>
 
