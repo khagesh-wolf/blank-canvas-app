@@ -1925,14 +1925,14 @@ export default function Admin() {
             </p>
             
             {/* Category list - sorted by sortOrder */}
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="space-y-2 max-h-64 overflow-y-auto category-list-container">
               {categories.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">No categories yet. Add one above.</p>
               ) : (
                 [...categories].sort((a, b) => a.sortOrder - b.sortOrder).map((cat, index) => (
                   <div 
                     key={cat.id} 
-                    className="flex items-center gap-2 p-2 bg-muted rounded-lg transition-all"
+                    className="flex items-center gap-2 p-2 bg-muted rounded-lg transition-all touch-none"
                     draggable={editingCategory?.id !== cat.id}
                     onDragStart={(e) => {
                       e.dataTransfer.effectAllowed = 'move';
@@ -1956,6 +1956,59 @@ export default function Admin() {
                       const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
                       if (fromIndex !== index) {
                         reorderCategories(fromIndex, index);
+                        toast.success('Category reordered');
+                      }
+                    }}
+                    onTouchStart={(e) => {
+                      if (editingCategory?.id === cat.id) return;
+                      const element = e.currentTarget as HTMLElement;
+                      element.dataset.dragIndex = String(index);
+                      element.classList.add('opacity-50');
+                      element.style.transform = 'scale(1.02)';
+                    }}
+                    onTouchMove={(e) => {
+                      if (editingCategory?.id === cat.id) return;
+                      e.preventDefault();
+                      const touch = e.touches[0];
+                      const container = document.querySelector('.category-list-container');
+                      if (!container) return;
+                      
+                      const items = Array.from(container.children) as HTMLElement[];
+                      items.forEach((item, i) => {
+                        const rect = item.getBoundingClientRect();
+                        const midY = rect.top + rect.height / 2;
+                        if (touch.clientY > rect.top && touch.clientY < rect.bottom) {
+                          item.dataset.dropTarget = 'true';
+                          item.classList.add('ring-2', 'ring-primary');
+                        } else {
+                          item.dataset.dropTarget = '';
+                          item.classList.remove('ring-2', 'ring-primary');
+                        }
+                      });
+                    }}
+                    onTouchEnd={(e) => {
+                      if (editingCategory?.id === cat.id) return;
+                      const element = e.currentTarget as HTMLElement;
+                      element.classList.remove('opacity-50');
+                      element.style.transform = '';
+                      
+                      const container = document.querySelector('.category-list-container');
+                      if (!container) return;
+                      
+                      const items = Array.from(container.children) as HTMLElement[];
+                      const fromIndex = index;
+                      let toIndex = -1;
+                      
+                      items.forEach((item, i) => {
+                        if (item.dataset.dropTarget === 'true') {
+                          toIndex = i;
+                        }
+                        item.dataset.dropTarget = '';
+                        item.classList.remove('ring-2', 'ring-primary');
+                      });
+                      
+                      if (toIndex !== -1 && fromIndex !== toIndex) {
+                        reorderCategories(fromIndex, toIndex);
                         toast.success('Category reordered');
                       }
                     }}
