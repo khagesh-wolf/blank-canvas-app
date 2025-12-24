@@ -789,7 +789,7 @@ export default function Counter() {
             <h2 className="text-lg md:text-xl font-bold whitespace-nowrap mr-auto sm:mr-0">Counter</h2>
             
             {/* Tabs - inline with title */}
-            <div className="flex gap-1.5 overflow-x-auto order-last sm:order-none w-full sm:w-auto sm:flex-1 sm:justify-start mt-2 sm:mt-0 sm:ml-4">
+            <div className="flex items-center gap-1.5 overflow-x-auto order-last sm:order-none w-full sm:w-auto sm:flex-1 sm:justify-start mt-2 sm:mt-0 sm:ml-4">
               <button 
                 onClick={() => setActiveTab('active')}
                 className={`px-3 py-1.5 rounded-full font-semibold text-xs transition-all whitespace-nowrap flex-shrink-0 ${
@@ -800,6 +800,16 @@ export default function Counter() {
               >
                 Active Bills
               </button>
+              
+              {/* Search box - after Active Bills */}
+              <Input 
+                type="text"
+                placeholder="Search..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-24 sm:w-32 md:w-40 h-8 text-sm flex-shrink-0"
+              />
+              
               <button 
                 onClick={() => setActiveTab('accepted')}
                 className={`px-3 py-1.5 rounded-full font-semibold text-xs transition-all whitespace-nowrap flex-shrink-0 ${
@@ -820,27 +830,22 @@ export default function Counter() {
               >
                 History
               </button>
-              <button 
-                onClick={() => setActiveTab('expenses')}
-                className={`px-3 py-1.5 rounded-full font-semibold text-xs transition-all flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${
-                  activeTab === 'expenses' 
-                    ? 'bg-[#333] text-white' 
-                    : 'bg-white border border-[#ddd] text-[#555] hover:bg-gray-50'
-                }`}
-              >
-                <Wallet className="w-3 h-3" /> Expenses
-              </button>
             </div>
             
             {/* Action buttons - stays in same row */}
             <div className="flex items-center gap-1.5 ml-auto">
-              <Input 
-                type="text"
-                placeholder="Search..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="w-20 sm:w-32 md:w-40 h-8 text-sm"
-              />
+              <Button 
+                onClick={() => setActiveTab('expenses')}
+                variant="outline"
+                size="sm"
+                className={`h-8 text-xs flex items-center gap-1 ${
+                  activeTab === 'expenses' 
+                    ? 'bg-[#333] text-white border-[#333] hover:bg-[#333]/90' 
+                    : ''
+                }`}
+              >
+                <Wallet className="w-3 h-3" /> Expenses
+              </Button>
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => window.location.reload()}>
                 <RefreshCw className="w-3.5 h-3.5" />
               </Button>
@@ -908,86 +913,90 @@ export default function Counter() {
           {/* Accepted Orders Tab */}
           {activeTab === 'accepted' && (
             <div className="bg-white rounded-lg overflow-hidden shadow-sm">
-              <table className="w-full border-collapse">
-                <thead className="bg-[#f8f9fa]">
-                  <tr>
-                    <th className="p-4 text-left font-bold text-[#555]">ID</th>
-                    <th className="p-4 text-left font-bold text-[#555]">Time</th>
-                    <th className="p-4 text-left font-bold text-[#555]">Table</th>
-                    <th className="p-4 text-left font-bold text-[#555]">Customer</th>
-                    <th className="p-4 text-left font-bold text-[#555]">Items</th>
-                    <th className="p-4 text-left font-bold text-[#555]">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {acceptedOrders.length === 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead className="bg-[#f8f9fa]">
                     <tr>
-                      <td colSpan={6} className="text-center py-8 text-[#aaa]">No accepted orders.</td>
+                      <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">ID</th>
+                      <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Time</th>
+                      <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Table</th>
+                      <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Customer</th>
+                      <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Items</th>
+                      <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Total</th>
                     </tr>
-                  ) : (
-                    acceptedOrders.map(order => (
-                      <tr key={order.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
-                        <td className="p-4">#{order.id.slice(-6)}</td>
-                        <td className="p-4">{formatNepalTime(order.createdAt)}</td>
-                        <td className="p-4">Table {order.tableNumber}</td>
-                        <td className="p-4">{order.customerPhone}</td>
-                        <td className="p-4">{order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
-                        <td className="p-4 font-bold">रू{order.total}</td>
+                  </thead>
+                  <tbody>
+                    {acceptedOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-[#aaa]">No accepted orders.</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      acceptedOrders.map(order => (
+                        <tr key={order.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
+                          <td className="p-3 md:p-4 text-sm">#{order.id.slice(-6)}</td>
+                          <td className="p-3 md:p-4 text-sm">{formatNepalTime(order.createdAt)}</td>
+                          <td className="p-3 md:p-4 text-sm">Table {order.tableNumber}</td>
+                          <td className="p-3 md:p-4 text-sm">{order.customerPhone}</td>
+                          <td className="p-3 md:p-4 text-sm">{order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
+                          <td className="p-3 md:p-4 font-bold text-sm">रू{order.total}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {/* History Tab */}
           {activeTab === 'history' && (
             <div>
-              <div className="mb-4 flex gap-3">
+              <div className="mb-4 flex flex-wrap gap-3">
                 <Input 
                   type="date" 
                   value={historyDate}
                   onChange={(e) => setHistoryDate(e.target.value)}
-                  className="w-48"
+                  className="w-full sm:w-48"
                 />
                 <Button onClick={() => setHistoryDate('')}>Clear Filter</Button>
               </div>
               <div className="bg-white rounded-lg overflow-hidden shadow-sm">
-                <table className="w-full border-collapse">
-                  <thead className="bg-[#f8f9fa]">
-                    <tr>
-                      <th className="p-4 text-left font-bold text-[#555]">Bill ID</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Paid At</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Table</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Customers</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Total</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Method</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historyData.slice(0, historyLimit).length === 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse min-w-[600px]">
+                    <thead className="bg-[#f8f9fa]">
                       <tr>
-                        <td colSpan={6} className="text-center py-8 text-[#aaa]">No transactions found.</td>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Bill ID</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Paid At</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Table</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Customers</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Total</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Method</th>
                       </tr>
-                    ) : (
-                      historyData.slice(0, historyLimit).map(t => (
-                        <tr 
-                          key={t.id} 
-                          className="border-t border-[#eee] hover:bg-[#f9f9f9] cursor-pointer"
-                          onClick={() => viewTransactionDetail(t)}
-                        >
-                          <td className="p-4">#{t.id.slice(-6)}</td>
-                          <td className="p-4">{formatNepalTime(t.paidAt)}</td>
-                          <td className="p-4">Table {t.tableNumber}</td>
-                          <td className="p-4">{t.customerPhones.join(', ') || 'Guest'}</td>
-                          <td className="p-4 font-bold">रू{t.total}</td>
-                          <td className="p-4">{t.paymentMethod.toUpperCase()}</td>
+                    </thead>
+                    <tbody>
+                      {historyData.slice(0, historyLimit).length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-[#aaa]">No transactions found.</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        historyData.slice(0, historyLimit).map(t => (
+                          <tr 
+                            key={t.id} 
+                            className="border-t border-[#eee] hover:bg-[#f9f9f9] cursor-pointer"
+                            onClick={() => viewTransactionDetail(t)}
+                          >
+                            <td className="p-3 md:p-4 text-sm">#{t.id.slice(-6)}</td>
+                            <td className="p-3 md:p-4 text-sm">{formatNepalTime(t.paidAt)}</td>
+                            <td className="p-3 md:p-4 text-sm">Table {t.tableNumber}</td>
+                            <td className="p-3 md:p-4 text-sm">{t.customerPhones.join(', ') || 'Guest'}</td>
+                            <td className="p-3 md:p-4 font-bold text-sm">रू{t.total}</td>
+                            <td className="p-3 md:p-4 text-sm">{t.paymentMethod.toUpperCase()}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
                 {historyData.length > historyLimit && (
                   <div className="text-center py-4">
                     <Button variant="outline" onClick={() => setHistoryLimit(historyLimit + 10)}>
@@ -1003,45 +1012,47 @@ export default function Counter() {
           {/* Expenses Tab */}
           {activeTab === 'expenses' && (
             <div>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h3 className="text-lg font-bold">Expense Tracking</h3>
                 <Button onClick={() => setExpenseModalOpen(true)} className="bg-[#333] hover:bg-[#333]/90">
                   <Plus className="w-4 h-4 mr-2" /> Add Expense
                 </Button>
               </div>
               <div className="bg-white rounded-lg overflow-hidden shadow-sm">
-                <table className="w-full border-collapse">
-                  <thead className="bg-[#f8f9fa]">
-                    <tr>
-                      <th className="p-4 text-left font-bold text-[#555]">Date</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Category</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Description</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Amount</th>
-                      <th className="p-4 text-left font-bold text-[#555]">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.length === 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse min-w-[500px]">
+                    <thead className="bg-[#f8f9fa]">
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-[#aaa]">No expenses recorded.</td>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Date</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Category</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Description</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Amount</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Action</th>
                       </tr>
-                    ) : (
-                      [...expenses].reverse().map(exp => (
-                        <tr key={exp.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
-                          <td className="p-4">{formatNepalDateTime(exp.createdAt)}</td>
-                          <td className="p-4 capitalize">{exp.category}</td>
-                          <td className="p-4">{exp.description}</td>
-                          <td className="p-4 font-bold text-red-600">-रू{exp.amount}</td>
-                          <td className="p-4">
-                            <Button size="sm" variant="destructive" onClick={() => { deleteExpense(exp.id); toast.success('Deleted'); }}>
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </td>
+                    </thead>
+                    <tbody>
+                      {expenses.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center py-8 text-[#aaa]">No expenses recorded.</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        [...expenses].reverse().map(exp => (
+                          <tr key={exp.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
+                            <td className="p-3 md:p-4 text-sm">{formatNepalDateTime(exp.createdAt)}</td>
+                            <td className="p-3 md:p-4 capitalize text-sm">{exp.category}</td>
+                            <td className="p-3 md:p-4 text-sm">{exp.description}</td>
+                            <td className="p-3 md:p-4 font-bold text-red-600 text-sm">-रू{exp.amount}</td>
+                            <td className="p-3 md:p-4">
+                              <Button size="sm" variant="destructive" onClick={() => { deleteExpense(exp.id); toast.success('Deleted'); }}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
                 {expenses.length > 0 && (
                   <div className="p-4 bg-[#f8f9fa] border-t border-[#eee]">
                     <div className="flex justify-between font-bold">
@@ -1068,7 +1079,7 @@ export default function Counter() {
 
       {/* Payment Modal */}
       <Dialog open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Confirm Payment</DialogTitle>
           </DialogHeader>
@@ -1165,7 +1176,7 @@ export default function Counter() {
 
       {/* Transaction Detail Modal */}
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Transaction Details</DialogTitle>
           </DialogHeader>
@@ -1208,7 +1219,7 @@ export default function Counter() {
 
       {/* Add Expense Modal */}
       <Dialog open={expenseModalOpen} onOpenChange={setExpenseModalOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Expense</DialogTitle>
           </DialogHeader>

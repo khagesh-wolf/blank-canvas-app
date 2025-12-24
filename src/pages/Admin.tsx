@@ -1544,7 +1544,7 @@ export default function Admin() {
 
       {/* Add Item Modal */}
       <Dialog open={isAddingItem} onOpenChange={setIsAddingItem}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Menu Item</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <Input placeholder="Item name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
@@ -1598,7 +1598,7 @@ export default function Admin() {
 
       {/* Edit Item Modal */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Item</DialogTitle></DialogHeader>
           {editingItem && (
             <div className="space-y-4 py-4">
@@ -1661,7 +1661,7 @@ export default function Admin() {
 
       {/* Category Manager Modal */}
       <Dialog open={showCategoryManager} onOpenChange={setShowCategoryManager}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Manage Categories</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             {/* Add new category */}
@@ -1771,7 +1771,7 @@ export default function Admin() {
 
       {/* Customer Detail Modal */}
       <Dialog open={!!customerDetailModal} onOpenChange={() => setCustomerDetailModal(null)}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Customer Details</DialogTitle></DialogHeader>
           {customerDetailModal && (
             <div className="space-y-4">
@@ -1812,7 +1812,7 @@ export default function Admin() {
 
       {/* Staff Modal */}
       <Dialog open={staffModal.open} onOpenChange={(open) => !open && setStaffModal({ open: false, editing: null })}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{staffModal.editing ? 'Edit Staff' : 'Add Staff'}</DialogTitle>
           </DialogHeader>
