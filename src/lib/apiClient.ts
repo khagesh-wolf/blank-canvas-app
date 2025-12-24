@@ -1,5 +1,5 @@
 // API Client for SQLite Backend
-// Auto-detects local IP from current browser location
+// Auto-detects local IP and protocol from current browser location
 
 const BACKEND_PORT = 3001;
 
@@ -7,14 +7,17 @@ const BACKEND_PORT = 3001;
 const getAutoDetectedUrl = (): string => {
   if (typeof window === 'undefined') return 'http://localhost:3001';
   
-  const { hostname } = window.location;
+  const { hostname, protocol } = window.location;
+  
+  // Use the same protocol (http/https) as the current page
+  const apiProtocol = protocol === 'https:' ? 'https' : 'http';
   
   // If accessing via IP address or hostname (not localhost), use the same host for backend
   if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return `http://${hostname}:${BACKEND_PORT}`;
+    return `${apiProtocol}://${hostname}:${BACKEND_PORT}`;
   }
   
-  return `http://localhost:${BACKEND_PORT}`;
+  return `${apiProtocol}://localhost:${BACKEND_PORT}`;
 };
 
 export const setApiBaseUrl = (url: string) => {
