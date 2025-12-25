@@ -23,8 +23,9 @@ const getAutoDetectedUrl = (): string => {
     return `http://${hostname}:${BACKEND_PORT}`;
   }
   
-  // For external/production, use same protocol as the page
-  return `${protocol}//${hostname}:${BACKEND_PORT}`;
+  // Always use HTTP since the backend doesn't support HTTPS
+  // The backend runs locally and requires HTTP connections
+  return `http://${hostname}:${BACKEND_PORT}`;
 };
 
 export const setApiBaseUrl = (url: string) => {
