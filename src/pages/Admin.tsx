@@ -10,7 +10,7 @@ import {
   Plus, Edit, Trash2, LogOut, Settings, LayoutDashboard, 
   UtensilsCrossed, Users, QrCode, History, TrendingUp, ShoppingBag, DollarSign,
   Download, Search, Eye, UserCog, BarChart3, Calendar, Image as ImageIcon, ToggleLeft, ToggleRight,
-  Check, X, Menu as MenuIcon, MonitorDot, GripVertical
+  Check, X, Menu as MenuIcon, MonitorDot, GripVertical, Upload, Loader2
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -33,6 +33,8 @@ import {
   restaurantNameSchema,
   sanitizeText
 } from '@/lib/validation';
+import { uploadToR2 } from '@/lib/r2Client';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 const COLORS = ['#06C167', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -296,8 +298,11 @@ export default function Admin() {
     setIsAddingItem(false);
   };
 
-  // Handle image upload for menu items
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEditing: boolean) => {
+  // Image upload state
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  // Handle image upload for menu items - now uses R2 if configured, falls back to base64
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEditing: boolean) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -306,21 +311,57 @@ export default function Admin() {
       return;
     }
     
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be less than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
       return;
     }
+
+    // Check if R2 is configured
+    const r2Configured = !!import.meta.env.VITE_R2_PUBLIC_URL;
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (isEditing && editingItem) {
-        setEditingItem({ ...editingItem, image: base64 });
-      } else {
-        setNewItem(prev => ({ ...prev, image: base64 }));
+    if (r2Configured) {
+      // Upload to R2
+      setIsUploadingImage(true);
+      try {
+        const result = await uploadToR2(file, { folder: 'menu', compress: true });
+        if (result.success && result.url) {
+          if (isEditing && editingItem) {
+            setEditingItem({ ...editingItem, image: result.url });
+          } else {
+            setNewItem(prev => ({ ...prev, image: result.url }));
+          }
+          toast.success('Image uploaded to CDN');
+        } else {
+          throw new Error(result.error || 'Upload failed');
+        }
+      } catch (error) {
+        console.error('R2 upload failed, falling back to base64:', error);
+        // Fallback to base64
+        await uploadAsBase64(file, isEditing);
+      } finally {
+        setIsUploadingImage(false);
       }
-    };
-    reader.readAsDataURL(file);
+    } else {
+      // Use base64 fallback
+      await uploadAsBase64(file, isEditing);
+    }
+  };
+
+  // Base64 fallback for local storage
+  const uploadAsBase64 = (file: File, isEditing: boolean): Promise<void> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        if (isEditing && editingItem) {
+          setEditingItem({ ...editingItem, image: base64 });
+        } else {
+          setNewItem(prev => ({ ...prev, image: base64 }));
+        }
+        resolve();
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   // Bulk availability toggle
@@ -1834,7 +1875,12 @@ export default function Admin() {
               <label className="text-sm font-medium mb-2 block">Image</label>
               <div className="flex gap-3 items-center">
                 {newItem.image ? (
-                  <img src={newItem.image} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />
+                  <OptimizedImage 
+                    src={newItem.image} 
+                    alt="Preview" 
+                    className="w-16 h-16 rounded-lg"
+                    size="thumbnail"
+                  />
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
                     <ImageIcon className="w-6 h-6 text-muted-foreground" />
@@ -1846,10 +1892,20 @@ export default function Admin() {
                     accept="image/*" 
                     onChange={(e) => handleImageUpload(e, false)}
                     className="text-sm"
+                    disabled={isUploadingImage}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Max 2MB, JPG/PNG</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isUploadingImage ? (
+                      <span className="flex items-center gap-1 text-primary">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Uploading to CDN...
+                      </span>
+                    ) : (
+                      <>Max 5MB, auto-compressed to WebP</>
+                    )}
+                  </p>
                 </div>
-                {newItem.image && (
+                {newItem.image && !isUploadingImage && (
                   <Button variant="ghost" size="sm" onClick={() => setNewItem({ ...newItem, image: '' })}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -1889,7 +1945,12 @@ export default function Admin() {
                 <label className="text-sm font-medium mb-2 block">Image</label>
                 <div className="flex gap-3 items-center">
                   {editingItem.image ? (
-                    <img src={editingItem.image} alt="Preview" className="w-16 h-16 rounded-lg object-cover" />
+                    <OptimizedImage 
+                      src={editingItem.image} 
+                      alt="Preview" 
+                      className="w-16 h-16 rounded-lg"
+                      size="thumbnail"
+                    />
                   ) : (
                     <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center">
                       <ImageIcon className="w-6 h-6 text-muted-foreground" />
@@ -1901,10 +1962,20 @@ export default function Admin() {
                       accept="image/*" 
                       onChange={(e) => handleImageUpload(e, true)}
                       className="text-sm"
+                      disabled={isUploadingImage}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Max 2MB, JPG/PNG</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isUploadingImage ? (
+                        <span className="flex items-center gap-1 text-primary">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Uploading to CDN...
+                        </span>
+                      ) : (
+                        <>Max 5MB, auto-compressed to WebP</>
+                      )}
+                    </p>
                   </div>
-                  {editingItem.image && (
+                  {editingItem.image && !isUploadingImage && (
                     <Button variant="ghost" size="sm" onClick={() => setEditingItem({ ...editingItem, image: undefined })}>
                       <Trash2 className="w-4 h-4" />
                     </Button>

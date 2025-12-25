@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Heart } from 'lucide-react';
-import { LazyImage } from '@/components/ui/LazyImage';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 import { MenuItemBadge, BadgeType } from '@/components/ui/MenuItemBadge';
 import { cn } from '@/lib/utils';
 
@@ -107,11 +107,12 @@ const MenuItemCard = memo(function MenuItemCard({
         "w-[100px] h-[100px] rounded-xl bg-[#eee] overflow-hidden flex-shrink-0",
         !available && 'grayscale'
       )}>
-        <LazyImage
+        <OptimizedImage
           src={image || ''}
           alt={name}
           className="w-full h-full"
           fallbackClassName="w-full h-full"
+          size="thumbnail"
         />
       </div>
     </div>
