@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { Order, OrderItem, Expense } from '@/types';
@@ -17,13 +17,18 @@ import {
   Plus,
   Trash2,
   Bell,
-  Settings
+  Settings,
+  Map,
+  Calculator
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatNepalTime, formatNepalDateTime } from '@/lib/nepalTime';
 import FonepayQR from '@/components/FonepayQR';
 import { useOrderNotification } from '@/hooks/useOrderNotification';
 import { useWaiterCallNotification } from '@/hooks/useWaiterCallNotification';
+import { useAutoCancel } from '@/hooks/useAutoCancel';
+import { TableMap } from '@/components/ui/TableMap';
+import { CashRegister } from '@/components/CashRegister';
 
 interface BillGroup {
   key: string;
@@ -53,6 +58,9 @@ export default function Counter() {
   // Audio notification hooks
   useOrderNotification();
   useWaiterCallNotification();
+  
+  // Auto-cancel pending orders after 30 minutes
+  useAutoCancel();
   
   const { 
     orders, 
@@ -95,6 +103,10 @@ export default function Counter() {
   // Expense states
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({ amount: '', description: '', category: 'other' as Expense['category'] });
+  
+  // Table Map and Cash Register states
+  const [tableMapOpen, setTableMapOpen] = useState(false);
+  const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
 
   const isDataLoaded = useStore(state => state.isDataLoaded);
 
@@ -260,6 +272,42 @@ export default function Counter() {
     return data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
   const filteredExpenses = getFilteredExpenses();
+
+  // Table map data - compute occupied/vacant tables
+  const tableMapData = useMemo(() => {
+    const tableCount = settings.tableCount || 10;
+    const activeOrders = orders.filter(o => ['pending', 'accepted', 'preparing'].includes(o.status));
+    
+    return Array.from({ length: tableCount }, (_, i) => {
+      const tableNum = i + 1;
+      const tableOrders = activeOrders.filter(o => o.tableNumber === tableNum);
+      const totalAmount = tableOrders.reduce((sum, o) => 
+        sum + o.items.reduce((s, item) => s + item.price * item.qty, 0), 0
+      );
+      
+      return {
+        tableNumber: tableNum,
+        isOccupied: tableOrders.length > 0,
+        customerCount: new Set(tableOrders.map(o => o.customerPhone)).size || undefined,
+        totalAmount: totalAmount || undefined,
+      };
+    });
+  }, [orders, settings.tableCount]);
+
+  // Cash register data - calculate today's figures
+  const cashRegisterData = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    
+    const todayTransactions = transactions.filter(t => t.paidAt.startsWith(today));
+    const todayExpenses = expenses.filter(e => e.createdAt.startsWith(today));
+    
+    const todayRevenue = todayTransactions.reduce((sum, t) => sum + t.total, 0);
+    const todayExpenseTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const cashPayments = todayTransactions.filter(t => t.paymentMethod === 'cash').reduce((sum, t) => sum + t.total, 0);
+    const fonepayPayments = todayTransactions.filter(t => t.paymentMethod === 'fonepay').reduce((sum, t) => sum + t.total, 0);
+    
+    return { todayRevenue, todayExpenseTotal, cashPayments, fonepayPayments };
+  }, [transactions, expenses]);
 
   const handleAcceptGroup = (group: PendingOrderGroup) => {
     // Accept all orders in the group
@@ -877,6 +925,22 @@ export default function Counter() {
             {/* Action buttons - stays in same row */}
             <div className="flex items-center gap-1.5 ml-auto">
               <Button 
+                onClick={() => setTableMapOpen(true)}
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs flex items-center gap-1"
+              >
+                <Map className="w-3 h-3" /> Tables
+              </Button>
+              <Button 
+                onClick={() => setCashRegisterOpen(true)}
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs flex items-center gap-1"
+              >
+                <Calculator className="w-3 h-3" /> Register
+              </Button>
+              <Button 
                 onClick={() => setActiveTab('expenses')}
                 variant="outline"
                 size="sm"
@@ -1322,6 +1386,40 @@ export default function Counter() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Table Map Modal */}
+      <Dialog open={tableMapOpen} onOpenChange={setTableMapOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Map className="w-5 h-5 text-primary" />
+              Table Overview
+            </DialogTitle>
+          </DialogHeader>
+          <TableMap 
+            tables={tableMapData} 
+            onTableClick={(tableNum) => {
+              setSearchInput(tableNum.toString());
+              setTableMapOpen(false);
+              toast.info(`Filtered to Table ${tableNum}`);
+            }}
+          />
+          <div className="flex justify-between text-sm text-muted-foreground px-4">
+            <span>🟢 Occupied: {tableMapData.filter(t => t.isOccupied).length}</span>
+            <span>⚪ Vacant: {tableMapData.filter(t => !t.isOccupied).length}</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cash Register Modal */}
+      <CashRegister
+        open={cashRegisterOpen}
+        onOpenChange={setCashRegisterOpen}
+        todayRevenue={cashRegisterData.todayRevenue}
+        todayExpenses={cashRegisterData.todayExpenseTotal}
+        cashPayments={cashRegisterData.cashPayments}
+        fonepayPayments={cashRegisterData.fonepayPayments}
+      />
     </div>
   );
 }
