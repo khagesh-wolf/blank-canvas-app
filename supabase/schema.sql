@@ -227,6 +227,80 @@ CREATE INDEX IF NOT EXISTS idx_waiter_calls_status ON waiter_calls(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at DESC);
 
 -- ===========================================
+-- Payment blocks table (3-hour cooldown after payment)
+-- ===========================================
+
+CREATE TABLE IF NOT EXISTS payment_blocks (
+  id SERIAL PRIMARY KEY,
+  table_number INTEGER NOT NULL,
+  customer_phone TEXT NOT NULL,
+  paid_at TIMESTAMPTZ DEFAULT NOW(),
+  staff_override BOOLEAN DEFAULT FALSE,
+  override_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_blocks_table_phone ON payment_blocks(table_number, customer_phone);
+CREATE INDEX IF NOT EXISTS idx_payment_blocks_paid_at ON payment_blocks(paid_at DESC);
+
+ALTER TABLE payment_blocks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read payment_blocks" ON payment_blocks FOR SELECT USING (true);
+CREATE POLICY "Public insert payment_blocks" ON payment_blocks FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update payment_blocks" ON payment_blocks FOR UPDATE USING (true);
+
+-- Function to check if customer is blocked (paid within 3 hours)
+CREATE OR REPLACE FUNCTION check_payment_block(
+  p_table_number INTEGER,
+  p_customer_phone TEXT
+)
+RETURNS TABLE (
+  is_blocked BOOLEAN,
+  paid_at TIMESTAMPTZ,
+  block_id INTEGER
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    CASE WHEN pb.id IS NOT NULL AND pb.staff_override = FALSE THEN TRUE ELSE FALSE END,
+    pb.paid_at,
+    pb.id
+  FROM payment_blocks pb
+  WHERE pb.table_number = p_table_number
+    AND pb.customer_phone = p_customer_phone
+    AND pb.paid_at > NOW() - INTERVAL '3 hours'
+    AND pb.staff_override = FALSE
+  ORDER BY pb.paid_at DESC
+  LIMIT 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to record a payment block
+CREATE OR REPLACE FUNCTION record_payment_block(
+  p_table_number INTEGER,
+  p_customer_phone TEXT
+)
+RETURNS INTEGER AS $$
+DECLARE
+  new_id INTEGER;
+BEGIN
+  INSERT INTO payment_blocks (table_number, customer_phone, paid_at)
+  VALUES (p_table_number, p_customer_phone, NOW())
+  RETURNING id INTO new_id;
+  RETURN new_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to override a payment block (staff confirmation)
+CREATE OR REPLACE FUNCTION override_payment_block(p_block_id INTEGER)
+RETURNS BOOLEAN AS $$
+BEGIN
+  UPDATE payment_blocks SET staff_override = TRUE, override_at = NOW() WHERE id = p_block_id;
+  RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ===========================================
 -- Insert default settings row
 -- ===========================================
 

@@ -7,6 +7,7 @@ import {
   getClosedSessions, 
   addClosedSession 
 } from '@/lib/sessionManager';
+import { checkPaymentBlock, overridePaymentBlock, PaymentBlockCheck } from '@/lib/paymentBlockApi';
 import { Input } from '@/components/ui/input';
 import { 
   Plus, 
@@ -26,7 +27,8 @@ import {
   UtensilsCrossed,
   Trash2,
   Flame,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { useHapticFeedback, playOrderSuccessSound } from '@/hooks/useHapticFeedback';
 import { Confetti } from '@/components/Confetti';
@@ -46,6 +48,53 @@ import {
   validateInput,
   sanitizeText 
 } from '@/lib/validation';
+
+// Staff PIN approval component for payment block override
+function StaffApprovalInput({ onApprove }: { onApprove: () => void }) {
+  const [pin, setPin] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const { staff } = useStore();
+
+  const handlePinSubmit = async () => {
+    if (pin.length < 4) return;
+    
+    setIsVerifying(true);
+    
+    // Check if PIN matches any staff member's password (used as PIN for quick actions)
+    // Staff with role 'counter' or 'admin' can approve
+    const matchedStaff = staff.find(s => s.password === pin);
+    
+    if (matchedStaff) {
+      await onApprove();
+    } else {
+      toast.error('Invalid PIN');
+    }
+    
+    setPin('');
+    setIsVerifying(false);
+  };
+
+  return (
+    <div className="flex gap-2">
+      <input
+        type="password"
+        inputMode="numeric"
+        maxLength={6}
+        placeholder="Staff PIN"
+        value={pin}
+        onChange={(e) => setPin(e.target.value.slice(0, 6))}
+        className="flex-1 p-3 border-2 border-[#eee] rounded-lg text-center text-lg tracking-widest outline-none focus:border-[#06C167]"
+      />
+      <button
+        onClick={handlePinSubmit}
+        disabled={pin.length < 4 || isVerifying}
+        className="px-6 py-3 bg-[#06C167] text-white rounded-lg font-semibold disabled:opacity-50"
+      >
+        {isVerifying ? '...' : 'OK'}
+      </button>
+    </div>
+  );
+}
 
 export default function TableOrder() {
   const { tableNumber } = useParams();
@@ -127,6 +176,11 @@ export default function TableOrder() {
   
   // State for stale session warning
   const [showStaleSessionWarning, setShowStaleSessionWarning] = useState(false);
+  
+  // State for payment block (3-hour cooldown after payment)
+  const [paymentBlock, setPaymentBlock] = useState<PaymentBlockCheck | null>(null);
+  const [isCheckingPaymentBlock, setIsCheckingPaymentBlock] = useState(false);
+  const [showStaffConfirmation, setShowStaffConfirmation] = useState(false);
 
   // Capture install prompt event
   useEffect(() => {
@@ -329,6 +383,31 @@ export default function TableOrder() {
       }
     }
   }, [isPhoneEntered, phone, table, storeOrders, bills]);
+
+  // Check for payment block when phone is entered
+  useEffect(() => {
+    if (!isPhoneEntered || !phone || !table) return;
+    
+    const checkBlock = async () => {
+      setIsCheckingPaymentBlock(true);
+      try {
+        const block = await checkPaymentBlock(table, phone);
+        if (block && block.is_blocked) {
+          setPaymentBlock(block);
+          setShowStaffConfirmation(true);
+        } else {
+          setPaymentBlock(null);
+          setShowStaffConfirmation(false);
+        }
+      } catch (err) {
+        console.error('[TableOrder] Error checking payment block:', err);
+      } finally {
+        setIsCheckingPaymentBlock(false);
+      }
+    };
+    
+    checkBlock();
+  }, [isPhoneEntered, phone, table]);
 
   // Build category list: only show Favorites if there are favorites
   const categoryNames = favorites.length > 0 
@@ -609,6 +688,64 @@ export default function TableOrder() {
             className="w-full mt-3 text-[#666] text-sm underline"
           >
             I'm still at this table
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Staff confirmation required screen (payment within 3 hours)
+  if (showStaffConfirmation && paymentBlock?.is_blocked) {
+    const paidTime = paymentBlock.paid_at ? new Date(paymentBlock.paid_at) : null;
+    const timeAgo = paidTime ? Math.round((Date.now() - paidTime.getTime()) / (1000 * 60)) : 0;
+    const hoursAgo = Math.floor(timeAgo / 60);
+    const minsAgo = timeAgo % 60;
+    const timeAgoText = hoursAgo > 0 
+      ? `${hoursAgo}h ${minsAgo}m ago` 
+      : `${minsAgo} minutes ago`;
+    
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white flex items-center justify-center p-4">
+        <div className="bg-white w-full max-w-sm rounded-2xl p-8 shadow-lg text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-amber-100 rounded-full flex items-center justify-center">
+            <ShieldAlert className="w-8 h-8 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Staff Confirmation Required</h2>
+          <p className="text-[#666] mb-4 text-sm">
+            Your bill was paid {timeAgoText}. To start a new order, please ask a staff member to confirm.
+          </p>
+          <div className="bg-[#f5f5f5] p-3 rounded-lg mb-6 text-sm">
+            <div className="font-medium">Table {table}</div>
+            <div className="text-[#999]">{phone}</div>
+          </div>
+          
+          <div className="text-xs text-[#999] mb-4">
+            Staff: Enter PIN to approve
+          </div>
+          
+          <StaffApprovalInput 
+            onApprove={async () => {
+              if (paymentBlock.block_id) {
+                const success = await overridePaymentBlock(paymentBlock.block_id);
+                if (success) {
+                  setShowStaffConfirmation(false);
+                  setPaymentBlock(null);
+                  toast.success('Session approved! You can now order.');
+                } else {
+                  toast.error('Failed to approve. Please try again.');
+                }
+              }
+            }}
+          />
+          
+          <button
+            onClick={() => {
+              localStorage.removeItem('chiyadani:customerActiveSession');
+              navigate('/', { replace: true });
+            }}
+            className="w-full mt-4 text-[#666] text-sm underline"
+          >
+            Cancel and scan QR again
           </button>
         </div>
       </div>

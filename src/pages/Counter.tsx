@@ -30,6 +30,7 @@ import { useAutoCancel } from '@/hooks/useAutoCancel';
 import { TableMap } from '@/components/ui/TableMap';
 import { CashRegister } from '@/components/CashRegister';
 import { closeTableSession } from '@/lib/sessionManager';
+import { recordPaymentBlocksForPhones } from '@/lib/paymentBlockApi';
 
 interface BillGroup {
   key: string;
@@ -433,6 +434,10 @@ export default function Counter() {
     // Close customer sessions for all phones that paid
     // This prevents reuse of old URLs from browser history
     closeTableSession(tableNumber, selectedPhones);
+    
+    // Record payment blocks (3-hour cooldown)
+    // This prevents ordering from old QR codes after payment
+    recordPaymentBlocksForPhones(tableNumber, selectedPhones);
 
     // Store last paid data for printing
     setLastPaidData({
