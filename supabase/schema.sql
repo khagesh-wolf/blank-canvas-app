@@ -301,9 +301,29 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ===========================================
+-- Settings table extensions for app fields
+-- ===========================================
+
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS base_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS wifi_ssid TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS wifi_password TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS counter_as_admin BOOLEAN DEFAULT FALSE;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS instagram_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS facebook_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS tiktok_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS google_review_url TEXT;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS kitchen_handles INTEGER DEFAULT 3;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS point_system_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS points_per_rupee NUMERIC;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS point_value_in_rupees NUMERIC;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_discount_rupees NUMERIC;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS max_discount_points INTEGER;
+
+-- ===========================================
 -- Insert default settings row
 -- ===========================================
 
-INSERT INTO settings (restaurant_name, currency, tax_rate) 
+INSERT INTO settings (restaurant_name, currency, tax_rate)
 VALUES ('Chiyadani', 'NPR', 13.00)
 ON CONFLICT DO NOTHING;

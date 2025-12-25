@@ -216,40 +216,85 @@ export const staffApi = {
 };
 
 // Settings API
+const mapSettingsFromDb = (row: any) => {
+  if (!row) return {};
+  return {
+    restaurantName: row.restaurant_name ?? row.restaurantName,
+    tableCount: row.tables_count ?? row.tableCount,
+    wifiSSID: row.wifi_ssid ?? row.wifiSSID ?? '',
+    wifiPassword: row.wifi_password ?? row.wifiPassword ?? '',
+    baseUrl: row.base_url ?? row.baseUrl ?? '',
+    logo: row.logo_url ?? row.logo ?? undefined,
+    instagramUrl: row.instagram_url ?? row.instagramUrl ?? undefined,
+    facebookUrl: row.facebook_url ?? row.facebookUrl ?? undefined,
+    tiktokUrl: row.tiktok_url ?? row.tiktokUrl ?? undefined,
+    googleReviewUrl: row.google_review_url ?? row.googleReviewUrl ?? undefined,
+    counterAsAdmin: row.counter_as_admin ?? row.counterAsAdmin ?? false,
+    kitchenHandles: row.kitchen_handles ?? row.kitchenHandles ?? undefined,
+    pointSystemEnabled: row.point_system_enabled ?? row.pointSystemEnabled ?? undefined,
+    pointsPerRupee: row.points_per_rupee ?? row.pointsPerRupee ?? undefined,
+    pointValueInRupees: row.point_value_in_rupees ?? row.pointValueInRupees ?? undefined,
+    maxDiscountRupees: row.max_discount_rupees ?? row.maxDiscountRupees ?? undefined,
+    maxDiscountPoints: row.max_discount_points ?? row.maxDiscountPoints ?? undefined,
+  };
+};
+
+const mapSettingsToDb = (settings: any) => {
+  const db: Record<string, any> = {
+    restaurant_name: settings.restaurantName,
+    tables_count: settings.tableCount,
+    wifi_ssid: settings.wifiSSID,
+    wifi_password: settings.wifiPassword,
+    base_url: settings.baseUrl,
+    counter_as_admin: settings.counterAsAdmin,
+    kitchen_handles: settings.kitchenHandles,
+    point_system_enabled: settings.pointSystemEnabled,
+    points_per_rupee: settings.pointsPerRupee,
+    point_value_in_rupees: settings.pointValueInRupees,
+    max_discount_rupees: settings.maxDiscountRupees,
+    max_discount_points: settings.maxDiscountPoints,
+    logo_url: settings.logo,
+    instagram_url: settings.instagramUrl,
+    facebook_url: settings.facebookUrl,
+    tiktok_url: settings.tiktokUrl,
+    google_review_url: settings.googleReviewUrl,
+  };
+
+  // Only send defined fields to avoid schema errors
+  return Object.fromEntries(Object.entries(db).filter(([, v]) => v !== undefined));
+};
+
 export const settingsApi = {
   get: async () => {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('*')
-      .maybeSingle();
+    const { data, error } = await supabase.from('settings').select('*').maybeSingle();
     if (error) throw error;
-    return data || {};
+    return mapSettingsFromDb(data);
   },
   update: async (settings: any) => {
+    const payload = mapSettingsToDb(settings);
+
     // Check if settings row exists
-    const { data: existing } = await supabase
-      .from('settings')
-      .select('id')
-      .maybeSingle();
-    
-    if (existing) {
+    const { data: existing, error: existingError } = await supabase.from('settings').select('id').maybeSingle();
+    if (existingError) throw existingError;
+
+    if (existing?.id != null) {
       const { data, error } = await supabase
         .from('settings')
-        .update(settings)
+        .update(payload)
         .eq('id', existing.id)
         .select()
         .single();
       if (error) throw error;
-      return data;
-    } else {
-      const { data, error } = await supabase
-        .from('settings')
-        .insert(settings)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      return mapSettingsFromDb(data);
     }
+
+    const { data, error } = await supabase
+      .from('settings')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return mapSettingsFromDb(data);
   },
 };
 
