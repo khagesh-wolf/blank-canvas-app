@@ -49,7 +49,8 @@ export function generatePrintQRData(
   const result: PrintQRData[] = [];
   
   for (let i = 1; i <= tableCount; i++) {
-    const tableUrl = `${baseUrl}/table/${i}`;
+    // Use /scan?table=X format so it works with dynamic table switching
+    const tableUrl = `${baseUrl}/scan?table=${i}`;
     result.push({
       tableNum: i,
       tableQR: generateQRSVG(tableUrl, 120),

@@ -1,14 +1,62 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { QrCode, Smartphone } from 'lucide-react';
+import { isPWA } from './Install';
+import { toast } from 'sonner';
 
 export default function ScanTable() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { settings } = useStore();
 
-  // Check for existing session
+  // Check for table parameter from QR code scan
+  const tableFromQR = searchParams.get('table');
+
+  // Handle QR code scan with table number
   useEffect(() => {
+    if (tableFromQR) {
+      const tableNum = parseInt(tableFromQR);
+      if (tableNum && tableNum >= 1 && tableNum <= settings.tableCount) {
+        // Update session with new table (allows table switching via QR)
+        const sessionKey = 'chiyadani:customerActiveSession';
+        const phoneKey = 'chiyadani:customerPhone';
+        const savedPhone = localStorage.getItem(phoneKey);
+        
+        const existingSession = localStorage.getItem(sessionKey);
+        let phone = savedPhone || '';
+        let isPhoneEntered = false;
+        
+        if (existingSession) {
+          try {
+            const session = JSON.parse(existingSession);
+            phone = session.phone || savedPhone || '';
+            isPhoneEntered = Boolean(session.isPhoneEntered);
+          } catch {
+            // Ignore parse errors
+          }
+        }
+        
+        // Create/update session with new table
+        localStorage.setItem(sessionKey, JSON.stringify({
+          table: tableNum,
+          phone,
+          isPhoneEntered,
+          tableTimestamp: Date.now(),
+          timestamp: Date.now()
+        }));
+        
+        toast.success(`Switched to Table ${tableNum}`);
+        navigate(`/table/${tableNum}`, { replace: true });
+        return;
+      }
+    }
+  }, [tableFromQR, settings.tableCount, navigate]);
+
+  // Check for existing session (only if no QR table parameter)
+  useEffect(() => {
+    if (tableFromQR) return; // Skip if we're processing a QR scan
+    
     const sessionKey = 'chiyadani:customerActiveSession';
     const phoneKey = 'chiyadani:customerPhone';
     const existingSession = localStorage.getItem(sessionKey);
@@ -36,7 +84,6 @@ export default function ScanTable() {
         
         // Table expired but phone might still be saved
         if (savedPhone) {
-          // Keep the phone, just need to scan table again
           localStorage.setItem(phoneKey, savedPhone);
         }
         
@@ -46,7 +93,7 @@ export default function ScanTable() {
         localStorage.removeItem(sessionKey);
       }
     }
-  }, [navigate]);
+  }, [navigate, tableFromQR]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex flex-col items-center justify-center p-6 text-white">
@@ -75,7 +122,10 @@ export default function ScanTable() {
         
         <h2 className="text-xl font-semibold mb-2">Scan Table QR Code</h2>
         <p className="text-gray-400 text-sm mb-6">
-          Please scan the QR code on your table to start ordering delicious food and drinks.
+          {isPWA() 
+            ? "Use your camera to scan the QR code on your table."
+            : "Please scan the QR code on your table to start ordering delicious food and drinks."
+          }
         </p>
 
         <div className="flex items-center justify-center gap-2 text-amber-400 text-sm">
@@ -83,6 +133,14 @@ export default function ScanTable() {
           <span>Use your camera app to scan</span>
         </div>
       </div>
+
+      {/* PWA status indicator */}
+      {isPWA() && (
+        <div className="mt-6 flex items-center gap-2 text-xs text-gray-500">
+          <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+          <span>App Mode</span>
+        </div>
+      )}
     </div>
   );
 }

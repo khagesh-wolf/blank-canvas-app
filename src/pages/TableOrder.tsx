@@ -114,7 +114,7 @@ export default function TableOrder() {
     return undefined;
   };
 
-  // Validate table number and lock the session to the scanned table
+  // Validate table number and handle session
   useEffect(() => {
     if (!table || table < 1 || table > settings.tableCount) {
       toast.error('Invalid table number');
@@ -142,20 +142,31 @@ export default function TableOrder() {
         const tableAge = Date.now() - tableTimestamp;
         const isTableExpired = tableAge > 4 * 60 * 60 * 1000; // 4 hours
         
-        if (!isTableExpired && session.table !== table) {
-          // User is trying to access a different table via URL manipulation
-          toast.error(`You are already at Table ${session.table}. Please use that table's QR code.`);
-          navigate(`/table/${session.table}`);
-          return;
-        }
-        
-        if (isTableExpired) {
-          // Table expired - keep phone but redirect to scan
+        // If table is different and session not expired, update to new table
+        // This allows switching tables via QR scan
+        if (session.table !== table) {
+          // Update session with new table
+          const updatedSession = {
+            table,
+            phone: session.phone || savedPhone || '',
+            isPhoneEntered: Boolean(session.isPhoneEntered),
+            tableTimestamp: Date.now(),
+            timestamp: Date.now()
+          };
+          localStorage.setItem(sessionKey, JSON.stringify(updatedSession));
+          
+          if (session.phone || savedPhone) {
+            setPhone(session.phone || savedPhone || '');
+            setIsPhoneEntered(Boolean(session.isPhoneEntered));
+          }
+          
+          // Clear cart when switching tables
+          setCart([]);
+        } else if (isTableExpired) {
+          // Table expired - keep phone but refresh table timestamp
           if (session.phone || savedPhone) {
             localStorage.setItem(phoneKey, session.phone || savedPhone || '');
           }
-          localStorage.removeItem(sessionKey);
-          // Re-create session with new table from QR scan
           localStorage.setItem(sessionKey, JSON.stringify({
             table,
             phone: session.phone || savedPhone || '',
@@ -168,7 +179,7 @@ export default function TableOrder() {
             setIsPhoneEntered(true);
           }
         } else {
-          // Session still valid
+          // Session still valid, same table
           if (session.phone && session.phone.length >= 10) {
             setPhone(session.phone);
             setIsPhoneEntered(Boolean(session.isPhoneEntered));

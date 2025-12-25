@@ -8,6 +8,7 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import Index from "./pages/Index";
 import TableOrder from "./pages/TableOrder";
 import ScanTable from "./pages/ScanTable";
+import Install from "./pages/Install";
 import Counter from "./pages/Counter";
 import Admin from "./pages/Admin";
 import Auth from "./pages/Auth";
@@ -25,6 +26,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/scan" element={<ScanTable />} />
+            <Route path="/install" element={<Install />} />
             <Route path="/table/:tableNumber" element={<TableOrder />} />
             <Route path="/counter" element={<Counter />} />
             <Route path="/admin" element={<Admin />} />
