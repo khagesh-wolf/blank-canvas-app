@@ -1,48 +1,48 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useStore } from '@/store/useStore';
-import { 
-  Download, 
-  Smartphone, 
-  Share, 
-  Plus, 
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useStore } from "@/store/useStore";
+import {
+  Download,
+  Smartphone,
+  Share,
+  Plus,
   MoreVertical,
   ChevronRight,
   CheckCircle2,
   QrCode,
-  Loader2
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Detect if running as installed PWA
 export function isPWA(): boolean {
   return (
-    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia("(display-mode: standalone)").matches ||
     (window.navigator as any).standalone === true ||
-    document.referrer.includes('android-app://') ||
-    window.location.search.includes('utm_source=pwa')
+    document.referrer.includes("android-app://") ||
+    window.location.search.includes("utm_source=pwa")
   );
 }
 
 // Detect platform
-function getPlatform(): 'ios' | 'android' | 'desktop' {
+function getPlatform(): "ios" | "android" | "desktop" {
   const ua = navigator.userAgent.toLowerCase();
-  if (/iphone|ipad|ipod/.test(ua)) return 'ios';
-  if (/android/.test(ua)) return 'android';
-  return 'desktop';
+  if (/iphone|ipad|ipod/.test(ua)) return "ios";
+  if (/android/.test(ua)) return "android";
+  return "desktop";
 }
 
 // Check for active session
 function getActiveSession(): { table: number; phone?: string } | null {
   try {
-    const sessionKey = 'sajilo:customerActiveSession';
+    const sessionKey = "sajilo:customerActiveSession";
     const existingSession = localStorage.getItem(sessionKey);
     if (existingSession) {
       const session = JSON.parse(existingSession);
       const tableTimestamp = session.tableTimestamp || session.timestamp;
       const tableAge = Date.now() - tableTimestamp;
       const isTableExpired = tableAge > 4 * 60 * 60 * 1000; // 4 hours
-      
+
       if (!isTableExpired && session.table) {
         return { table: session.table, phone: session.phone };
       }
@@ -80,8 +80,8 @@ export default function Install() {
       setDeferredPrompt(e);
     };
 
-    window.addEventListener('beforeinstallprompt', handler);
-    
+    window.addEventListener("beforeinstallprompt", handler);
+
     // Listen for successful install - ONLY fires for Chrome's native prompt
     const installHandler = () => {
       // Only show installing state if we triggered it via our button
@@ -90,38 +90,38 @@ export default function Install() {
           setIsInstalled(true);
           setIsInstalling(false);
           setDeferredPrompt(null);
-          
+
           // Check for active session and redirect
           const activeSession = getActiveSession();
-          const pendingTable = sessionStorage.getItem('sajilo:pendingTable');
-          
+          const pendingTable = sessionStorage.getItem("sajilo:pendingTable");
+
           if (activeSession) {
             navigate(`/table/${activeSession.table}`, { replace: true });
           } else if (pendingTable) {
-            sessionStorage.removeItem('sajilo:pendingTable');
+            sessionStorage.removeItem("sajilo:pendingTable");
             navigate(`/scan?table=${pendingTable}`, { replace: true });
           }
         }, 1500);
       }
     };
-    
-    window.addEventListener('appinstalled', installHandler);
+
+    window.addEventListener("appinstalled", installHandler);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener("beforeinstallprompt", handler);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      window.removeEventListener('appinstalled', installHandler);
+      window.removeEventListener("appinstalled", installHandler);
     };
   }, [navigate, isInstalling]);
 
   // Handle install button click (Android/Chrome)
   const handleInstall = async () => {
     if (!deferredPrompt) return;
-    
+
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
+
+    if (outcome === "accepted") {
       // User accepted, show installing state
       setIsInstalling(true);
       // Wait a bit then show success (appinstalled event may not fire reliably)
@@ -130,12 +130,12 @@ export default function Install() {
         setIsInstalling(false);
         // Check for active session and redirect
         const activeSession = getActiveSession();
-        const pendingTable = sessionStorage.getItem('sajilo:pendingTable');
-        
+        const pendingTable = sessionStorage.getItem("sajilo:pendingTable");
+
         if (activeSession) {
           navigate(`/table/${activeSession.table}`, { replace: true });
         } else if (pendingTable) {
-          sessionStorage.removeItem('sajilo:pendingTable');
+          sessionStorage.removeItem("sajilo:pendingTable");
           navigate(`/scan?table=${pendingTable}`, { replace: true });
         }
       }, 2000);
@@ -148,15 +148,15 @@ export default function Install() {
   // Handle navigation after install
   const handleContinue = () => {
     const activeSession = getActiveSession();
-    const pendingTable = sessionStorage.getItem('sajilo:pendingTable');
-    
+    const pendingTable = sessionStorage.getItem("sajilo:pendingTable");
+
     if (activeSession) {
       navigate(`/table/${activeSession.table}`, { replace: true });
     } else if (pendingTable) {
-      sessionStorage.removeItem('sajilo:pendingTable');
+      sessionStorage.removeItem("sajilo:pendingTable");
       navigate(`/?table=${pendingTable}`, { replace: true });
     } else {
-      navigate('/scan', { replace: true });
+      navigate("/scan", { replace: true });
     }
   };
 
@@ -166,9 +166,9 @@ export default function Install() {
       <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="text-center mb-8">
           {settings.logo ? (
-            <img 
-              src={settings.logo} 
-              alt={settings.restaurantName} 
+            <img
+              src={settings.logo}
+              alt={settings.restaurantName}
               className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-2xl animate-pulse"
             />
           ) : (
@@ -183,16 +183,14 @@ export default function Install() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/20 flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
           </div>
-          
+
           <h2 className="text-xl font-semibold mb-2">Installing App...</h2>
-          <p className="text-gray-400 text-sm">
-            Please wait while we set up your experience.
-          </p>
-          
+          <p className="text-gray-400 text-sm">Please wait while we set up your experience.</p>
+
           <div className="mt-6 flex justify-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: "300ms" }} />
           </div>
         </div>
       </div>
@@ -202,14 +200,14 @@ export default function Install() {
   // If already installed, show success and redirect option
   if (isInstalled) {
     const activeSession = getActiveSession();
-    
+
     return (
       <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="text-center mb-8">
           {settings.logo ? (
-            <img 
-              src={settings.logo} 
-              alt={settings.restaurantName} 
+            <img
+              src={settings.logo}
+              alt={settings.restaurantName}
               className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-2xl"
             />
           ) : (
@@ -224,18 +222,15 @@ export default function Install() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-success/20 flex items-center justify-center">
             <CheckCircle2 className="w-8 h-8 text-success" />
           </div>
-          
+
           <h2 className="text-xl font-semibold mb-2">App Installed!</h2>
           <p className="text-gray-400 text-sm mb-6">
-            {activeSession 
+            {activeSession
               ? `You have an active session at Table ${activeSession.table}. Continue ordering!`
-              : 'You can now scan table QR codes to start ordering.'}
+              : "You can now scan table QR codes to start ordering."}
           </p>
 
-          <Button 
-            onClick={handleContinue}
-            className="w-full bg-white text-black hover:bg-gray-100"
-          >
+          <Button onClick={handleContinue} className="w-full bg-white text-black hover:bg-gray-100">
             {activeSession ? (
               <>
                 <ChevronRight className="w-4 h-4 mr-2" />
@@ -258,9 +253,9 @@ export default function Install() {
       {/* Logo */}
       <div className="text-center mb-6">
         {settings.logo ? (
-          <img 
-            src={settings.logo} 
-            alt={settings.restaurantName} 
+          <img
+            src={settings.logo}
+            alt={settings.restaurantName}
             className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-2xl"
           />
         ) : (
@@ -279,28 +274,22 @@ export default function Install() {
             <Download className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-xl font-semibold mb-2">Install Our App</h2>
-          <p className="text-gray-400 text-sm">
-            Install for faster ordering, offline access, and a better experience.
-          </p>
+          <p className="text-gray-400 text-sm">Install for faster ordering, offline access, and a better experience.</p>
         </div>
 
         {/* Android/Chrome - Show install button if prompt available */}
         {deferredPrompt && (
-          <Button 
-            onClick={handleInstall}
-            className="w-full bg-white text-black hover:bg-gray-100 mb-4"
-            size="lg"
-          >
+          <Button onClick={handleInstall} className="w-full bg-white text-black hover:bg-gray-100 mb-4" size="lg">
             <Download className="w-5 h-5 mr-2" />
             Install App
           </Button>
         )}
 
         {/* iOS Instructions */}
-        {platform === 'ios' && (
+        {platform === "ios" && (
           <div className="space-y-4">
             <p className="text-sm text-gray-300 font-medium">Follow these steps:</p>
-            
+
             <div className="space-y-3">
               <div className="flex items-start gap-3 bg-white/5 rounded-xl p-3">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -339,10 +328,10 @@ export default function Install() {
         )}
 
         {/* Android Instructions (when no prompt) */}
-        {platform === 'android' && !deferredPrompt && (
+        {platform === "android" && !deferredPrompt && (
           <div className="space-y-4">
             <p className="text-sm text-gray-300 font-medium">Follow these steps:</p>
-            
+
             <div className="space-y-3">
               <div className="flex items-start gap-3 bg-white/5 rounded-xl p-3">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -381,14 +370,14 @@ export default function Install() {
         )}
 
         {/* Desktop Instructions */}
-        {platform === 'desktop' && !deferredPrompt && (
+        {platform === "desktop" && !deferredPrompt && (
           <div className="space-y-4">
             <div className="flex items-center justify-center gap-3 py-4">
               <Smartphone className="w-12 h-12 text-amber-400" />
             </div>
             <p className="text-sm text-gray-300 text-center">
-              Open this page on your <strong>mobile phone</strong> for the best experience. 
-              Scan the QR code on your table to get started!
+              Open this page on your <strong>mobile phone</strong> for the best experience. Scan the QR code on your
+              table to get started!
             </p>
           </div>
         )}
@@ -414,10 +403,7 @@ export default function Install() {
       </div>
 
       {/* Skip link */}
-      <button 
-        onClick={() => navigate('/scan')}
-        className="mt-6 text-sm text-gray-500 underline"
-      >
+      <button onClick={() => navigate("/")} className="mt-6 text-sm text-gray-500 underline">
         Continue in browser instead
       </button>
     </div>
