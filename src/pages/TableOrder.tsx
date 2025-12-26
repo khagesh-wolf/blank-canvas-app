@@ -749,7 +749,7 @@ export default function TableOrder() {
                 }
               }}
             />
-            
+          </div>
           
           {/* Cancel Link */}
           <button
