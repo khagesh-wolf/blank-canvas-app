@@ -1,8 +1,9 @@
 // Image Upload Client for Cloudflare R2 via Worker
 
 const getWorkerUrl = (): string => {
-  // Use environment variable or fallback to production URL
-  return import.meta.env.VITE_API_URL || 'https://chiyadani-api.YOUR_SUBDOMAIN.workers.dev';
+  // UPDATE THIS with your deployed worker URL after running: cd workers && wrangler deploy
+  // Example: 'https://chiyadani-api.your-subdomain.workers.dev'
+  return import.meta.env.VITE_API_URL || '';
 };
 
 export interface UploadResult {
