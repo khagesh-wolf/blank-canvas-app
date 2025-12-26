@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSubscription } from '@/hooks/useSubscription';
 import { SubscriptionLockScreen } from './SubscriptionLockScreen';
 import { SubscriptionWarning } from './SubscriptionWarning';
@@ -6,6 +7,15 @@ import { Loader2 } from 'lucide-react';
 
 interface SubscriptionGuardProps {
   children: ReactNode;
+}
+
+// Customer-facing routes where warning should not be shown
+const CUSTOMER_ROUTES = ['/', '/table'];
+
+function isCustomerRoute(pathname: string): boolean {
+  return CUSTOMER_ROUTES.some(route => 
+    pathname === route || pathname.startsWith('/table/')
+  );
 }
 
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
@@ -34,11 +44,34 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     );
   }
 
-  // Show app with optional warning banner
+  // Render children - warning will be conditionally shown inside
+  return (
+    <SubscriptionGuardInner showWarning={showWarning} status={status}>
+      {children}
+    </SubscriptionGuardInner>
+  );
+}
+
+// Inner component that can use useLocation (inside BrowserRouter)
+function SubscriptionGuardInner({ 
+  children, 
+  showWarning, 
+  status 
+}: { 
+  children: ReactNode; 
+  showWarning: boolean; 
+  status: ReturnType<typeof useSubscription>['status'];
+}) {
+  // We can't use useLocation here because SubscriptionGuard is outside BrowserRouter
+  // Instead, check window.location directly
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const hideWarning = isCustomerRoute(pathname);
+  const shouldShowWarning = showWarning && status && !hideWarning;
+
   return (
     <>
-      {showWarning && status && <SubscriptionWarning status={status} />}
-      <div className={showWarning ? 'pt-10' : ''}>
+      {shouldShowWarning && <SubscriptionWarning status={status} />}
+      <div className={shouldShowWarning ? 'pt-10' : ''}>
         {children}
       </div>
     </>

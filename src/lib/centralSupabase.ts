@@ -29,17 +29,6 @@ interface ApiResponse {
 
 export async function checkSubscription(): Promise<SubscriptionStatus> {
   try {
-    console.log('[Subscription] Checking subscription status...');
-
-    // Diagnostic: explicitly test whether the endpoint accepts CORS preflight (OPTIONS)
-    // If this returns non-2xx, the browser will block the POST with a CORS error.
-    try {
-      const preflight = await fetch(SUBSCRIPTION_API_URL, { method: 'OPTIONS' });
-      console.log('[Subscription] Preflight status:', preflight.status);
-    } catch (e) {
-      console.warn('[Subscription] Preflight check failed:', e);
-    }
-
     const response = await fetch(SUBSCRIPTION_API_URL, {
       method: 'POST',
       headers: {
