@@ -543,7 +543,7 @@ export default function Counter() {
         <div style="border-top: 1px dashed black; margin-top: 5px; padding-top: 5px;"></div>
         ${data.discount > 0 ? `
           <div style="display: flex; justify-content: space-between;">
-            <span>Discount (Points)</span>
+            <span>Discount </span>
             <span>-${data.discount}</span>
           </div>
         ` : ''}
