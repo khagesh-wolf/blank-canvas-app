@@ -10,11 +10,12 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { 
   LogOut, ChefHat, ShoppingCart, Plus, Minus, Search, 
   CheckCircle, Clock, Utensils, Bell, Table2, Send, 
-  ArrowLeft, Trash2, AlertCircle, Sun, Moon, RefreshCw, X
+  ArrowLeft, Trash2, AlertCircle, Sun, Moon, RefreshCw, X, Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatNepalTime, formatNepalDateTime } from '@/lib/nepalTime';
 import { useTheme } from '@/hooks/useTheme';
+import { printKOTFromOrder, showKOTNotification } from '@/lib/kotPrinter';
 
 export default function Waiter() {
   const navigate = useNavigate();
@@ -139,11 +140,26 @@ export default function Waiter() {
     }).filter(c => c.qty > 0));
   };
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     if (!selectedTable || cart.length === 0) return;
     
-    addWaiterOrder(selectedTable, cart, orderNotes);
+    const newOrder = addWaiterOrder(selectedTable, cart, orderNotes);
     toast.success(`Order sent to kitchen for Table ${selectedTable}!`);
+    
+    // Auto-print KOT if enabled
+    if (settings.kotPrintingEnabled) {
+      try {
+        const printed = await printKOTFromOrder(newOrder, settings.restaurantName, currentUser?.name);
+        if (printed) {
+          toast.success('KOT printed!');
+        } else {
+          showKOTNotification(newOrder);
+        }
+      } catch (error) {
+        console.log('KOT print failed:', error);
+        showKOTNotification(newOrder);
+      }
+    }
     
     // Reset state
     setCart([]);

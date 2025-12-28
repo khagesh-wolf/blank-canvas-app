@@ -92,7 +92,7 @@ export default function Admin() {
   const [customerDetailModal, setCustomerDetailModal] = useState<Customer | null>(null);
   const [editingCustomerPhone, setEditingCustomerPhone] = useState<{ originalPhone: string; newPhone: string } | null>(null);
   const [staffModal, setStaffModal] = useState<{ open: boolean; editing: Staff | null }>({ open: false, editing: null });
-  const [newStaff, setNewStaff] = useState({ username: '', password: '', pin: '', name: '', role: 'counter' as 'admin' | 'counter' });
+  const [newStaff, setNewStaff] = useState({ username: '', password: '', pin: '', name: '', role: 'counter' as 'admin' | 'counter' | 'waiter' | 'kitchen' });
 
   // Dashboard date range states - use Nepal timezone
   const [dashboardDateFrom, setDashboardDateFrom] = useState(() => getNepalDateDaysAgo(30));
@@ -425,7 +425,7 @@ export default function Admin() {
       pin: newStaff.pin || undefined
     });
     toast.success('Staff added');
-    setNewStaff({ username: '', password: '', pin: '', name: '', role: 'counter' });
+    setNewStaff({ username: '', password: '', pin: '', name: '', role: 'counter' as 'admin' | 'counter' | 'waiter' | 'kitchen' });
     setStaffModal({ open: false, editing: null });
   };
 
@@ -1524,10 +1524,16 @@ export default function Admin() {
                       <p className="text-sm text-muted-foreground">@{s.username}</p>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      s.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                      s.role === 'admin' ? 'bg-primary/10 text-primary' : 
+                      s.role === 'waiter' ? 'bg-warning/10 text-warning' :
+                      s.role === 'kitchen' ? 'bg-success/10 text-success' :
+                      'bg-muted text-muted-foreground'
                     }`}>
                       {s.role.toUpperCase()}
                     </span>
+                    {s.pin && (
+                      <span className="text-xs text-muted-foreground ml-1" title="Has PIN">🔑</span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mb-3">Created: {formatNepalDateReadable(s.createdAt)}</p>
                   <div className="flex gap-2">
@@ -2530,14 +2536,21 @@ export default function Admin() {
                 />
                 <Select 
                   value={staffModal.editing.role} 
-                  onValueChange={(v: 'admin' | 'counter') => setStaffModal({ ...staffModal, editing: { ...staffModal.editing!, role: v }})}
+                  onValueChange={(v: 'admin' | 'counter' | 'waiter' | 'kitchen') => setStaffModal({ ...staffModal, editing: { ...staffModal.editing!, role: v }})}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="counter">Counter</SelectItem>
+                    <SelectItem value="waiter">Waiter</SelectItem>
+                    <SelectItem value="kitchen">Kitchen</SelectItem>
                   </SelectContent>
                 </Select>
+                {(staffModal.editing.role === 'waiter' || staffModal.editing.role === 'kitchen') && (
+                  <p className="text-xs text-muted-foreground">
+                    💡 {staffModal.editing.role === 'waiter' ? 'Waiters use PIN for quick login on /waiter page' : 'Kitchen staff can view /kitchen page'}
+                  </p>
+                )}
               </>
             ) : (
               <>
@@ -2552,13 +2565,20 @@ export default function Admin() {
                   value={newStaff.pin}
                   onChange={e => setNewStaff({ ...newStaff, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })} 
                 />
-                <Select value={newStaff.role} onValueChange={(v: 'admin' | 'counter') => setNewStaff({ ...newStaff, role: v })}>
+                <Select value={newStaff.role} onValueChange={(v: 'admin' | 'counter' | 'waiter' | 'kitchen') => setNewStaff({ ...newStaff, role: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="counter">Counter</SelectItem>
+                    <SelectItem value="waiter">Waiter</SelectItem>
+                    <SelectItem value="kitchen">Kitchen</SelectItem>
                   </SelectContent>
                 </Select>
+                {(newStaff.role === 'waiter' || newStaff.role === 'kitchen') && (
+                  <p className="text-xs text-muted-foreground">
+                    💡 {newStaff.role === 'waiter' ? 'Waiters use PIN for quick login. Access /waiter page to take orders.' : 'Kitchen staff can access /kitchen page to manage orders.'}
+                  </p>
+                )}
               </>
             )}
           </div>
