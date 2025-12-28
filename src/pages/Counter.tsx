@@ -108,6 +108,10 @@ export default function Counter() {
   const [lastPaidData, setLastPaidData] = useState<any>(null);
   const [currentDetailData, setCurrentDetailData] = useState<any>(null);
   
+  // Manual discount states
+  const [manualDiscountType, setManualDiscountType] = useState<'percent' | 'amount'>('amount');
+  const [manualDiscountValue, setManualDiscountValue] = useState('');
+  
   // Expense states
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [newExpense, setNewExpense] = useState({ amount: '', description: '', category: 'other' as Expense['category'] });
@@ -269,8 +273,19 @@ export default function Counter() {
   // Get selected groups for payment
   const selectedGroups = billGroups.filter(g => selectedPhones.includes(g.phone));
   const paymentSubtotal = selectedGroups.reduce((sum, g) => sum + g.subtotal, 0);
-  const availablePoints = selectedPhones.length === 1 ? (selectedGroups[0]?.points || 0) : 0;
-  const discountAmount = redeemPoints ? Math.min(availablePoints, paymentSubtotal) : 0;
+  const availablePoints = settings.pointSystemEnabled && selectedPhones.length === 1 ? (selectedGroups[0]?.points || 0) : 0;
+  
+  // Calculate manual discount
+  const manualDiscountAmount = useMemo(() => {
+    const value = parseFloat(manualDiscountValue) || 0;
+    if (manualDiscountType === 'percent') {
+      return Math.round((paymentSubtotal * value) / 100);
+    }
+    return Math.min(value, paymentSubtotal);
+  }, [manualDiscountType, manualDiscountValue, paymentSubtotal]);
+  
+  const pointsDiscount = redeemPoints ? Math.min(availablePoints, paymentSubtotal - manualDiscountAmount) : 0;
+  const discountAmount = manualDiscountAmount + pointsDiscount;
   const paymentTotal = paymentSubtotal - discountAmount;
 
   // History data with search
@@ -453,6 +468,8 @@ export default function Counter() {
 
   const openPaymentModal = () => {
     setRedeemPoints(false);
+    setManualDiscountValue('');
+    setManualDiscountType('amount');
     setPaymentModalOpen(true);
   };
 
@@ -1038,7 +1055,7 @@ export default function Counter() {
                   <div className="font-bold text-right text-lg border-t border-border pt-2 text-foreground">
                     रू{group.subtotal}
                   </div>
-                  {group.points > 0 && (
+                  {settings.pointSystemEnabled && group.points > 0 && (
                     <div className="text-xs text-warning mt-1">⭐ {group.points} points available</div>
                   )}
                   <div className="text-xs text-muted-foreground mt-1">{formatNepalTime(group.createdAt)}</div>
@@ -1259,8 +1276,33 @@ export default function Counter() {
             ))}
           </div>
 
-          {/* Loyalty Points */}
-          {availablePoints > 0 && (
+          {/* Manual Discount */}
+          <div className="border border-border p-3 rounded-lg mb-4">
+            <label className="text-sm font-medium text-foreground mb-2 block">Discount</label>
+            <div className="flex gap-2">
+              <Select value={manualDiscountType} onValueChange={(v: 'percent' | 'amount') => setManualDiscountType(v)}>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="amount">रू</SelectItem>
+                  <SelectItem value="percent">%</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                placeholder={manualDiscountType === 'percent' ? '0-100' : 'Amount'}
+                value={manualDiscountValue}
+                onChange={(e) => setManualDiscountValue(e.target.value)}
+                className="flex-1"
+                min="0"
+                max={manualDiscountType === 'percent' ? '100' : undefined}
+              />
+            </div>
+          </div>
+
+          {/* Loyalty Points - only show if point system is enabled */}
+          {settings.pointSystemEnabled && availablePoints > 0 && (
             <div className="bg-success/10 border border-success/20 p-3 rounded-lg mb-4">
               <label className="flex justify-between items-center cursor-pointer">
                 <span className="text-foreground">Redeem <b>{availablePoints}</b> points (रू{availablePoints} off)</span>
@@ -1274,10 +1316,17 @@ export default function Counter() {
             </div>
           )}
 
-          {discountAmount > 0 && (
+          {manualDiscountAmount > 0 && (
+            <div className="flex justify-between text-success mb-1">
+              <span>Discount {manualDiscountType === 'percent' ? `(${manualDiscountValue}%)` : ''}</span>
+              <span>-रू{manualDiscountAmount}</span>
+            </div>
+          )}
+          
+          {pointsDiscount > 0 && (
             <div className="flex justify-between text-success mb-2">
-              <span>Discount (Points)</span>
-              <span>-रू{discountAmount}</span>
+              <span>Points Redeemed</span>
+              <span>-रू{pointsDiscount}</span>
             </div>
           )}
 
