@@ -412,17 +412,6 @@ export default function Waiter() {
                 {readyOrdersCount} Ready
               </Button>
             )}
-            
-            {step === 'menu' && cart.length > 0 && (
-              <Button
-                size="sm"
-                className="gradient-primary text-primary-foreground rounded-lg"
-                onClick={() => setStep('cart')}
-              >
-                <ShoppingCart className="w-4 h-4 mr-1" />
-                {cartItemCount}
-              </Button>
-            )}
 
             <Button 
               variant="ghost" 
