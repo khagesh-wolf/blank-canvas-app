@@ -58,11 +58,13 @@
 | Feature | Description |
 |---------|-------------|
 | 🗺️ **Visual Table Map** | Color-coded table status at a glance |
-| 👨‍🍳 **Kitchen Display** | Real-time order queue with prep times |
+| 👨‍🍳 **Kitchen Display (KDS)** | Real-time order queue with prep times |
 | 🔊 **Sound Alerts** | Audio notifications for new orders |
 | 🧾 **Receipt Printing** | Direct thermal printer support |
 | 💵 **Cash Register** | Track cash, expenses, daily totals |
 | 📊 **Analytics** | Revenue trends, popular items, peak hours |
+| 🛎️ **Waiter App** | Mobile-first order taking with slide-up cart |
+| 📱 **PWA Install** | Installable apps for Waiter, Counter, Kitchen |
 
 ### Management
 | Feature | Description |
@@ -87,6 +89,7 @@
 | **Storage** | Cloudflare R2 |
 | **Hosting** | Cloudflare Pages |
 | **PWA** | vite-plugin-pwa |
+| **Printing** | Web Bluetooth/USB for thermal printers |
 
 ---
 
@@ -162,8 +165,12 @@ src/
 | `/hub` | Staff navigation hub | Staff |
 | `/counter` | Counter dashboard | Staff |
 | `/kitchen` | Kitchen display | Staff |
+| `/waiter` | Waiter mobile ordering | Waiter |
 | `/admin` | Admin management | Admin |
 | `/auth` | Staff login | Public |
+| `/install/waiter` | Waiter PWA install guide | Staff |
+| `/install/counter` | Counter PWA install guide | Staff |
+| `/install/kitchen` | Kitchen PWA install guide | Staff |
 
 ---
 
@@ -200,10 +207,11 @@ payment_blocks      # Anti-fraud cooldown system
 ## 🔒 Security Features
 
 - **Payment Blocks**: 3-hour cooldown prevents QR code misuse after payment
-- **Staff PIN Verification**: Quick PIN for sensitive actions
+- **Staff PIN Verification**: Quick PIN for sensitive actions and waiter login
 - **Session Management**: 4-hour auto-logout for idle sessions
-- **Role-Based Access**: Admin, Counter, Kitchen permissions
+- **Role-Based Access**: Admin, Counter, Waiter, Kitchen permissions
 - **Row Level Security**: Supabase RLS policies
+- **Rate Limiting**: Protection against abuse
 
 ---
 
@@ -216,6 +224,8 @@ Sajilo Orders is a fully-featured PWA:
 - ✅ Push notifications (coming soon)
 - ✅ Home screen icon
 - ✅ Fast loading with caching
+- ✅ Role-specific install pages (Waiter, Counter, Kitchen, Admin)
+- ✅ Dynamic manifest based on user role
 
 ---
 

@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS staff (
   username TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
   pin TEXT DEFAULT '',
-  role TEXT DEFAULT 'counter',
+  role TEXT DEFAULT 'counter',  -- 'admin', 'counter', 'waiter', 'kitchen'
   name TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -204,22 +204,35 @@ CREATE TABLE IF NOT EXISTS staff (
 CREATE TABLE IF NOT EXISTS settings (
   id SERIAL PRIMARY KEY,
   restaurant_name TEXT DEFAULT 'Restaurant',
+  restaurant_sub_name TEXT DEFAULT '',
   table_count INTEGER DEFAULT 10,
   wifi_ssid TEXT DEFAULT '',
   wifi_password TEXT DEFAULT '',
   base_url TEXT DEFAULT '',
   logo TEXT DEFAULT '',
+  -- Social media links
   instagram_url TEXT DEFAULT '',
   facebook_url TEXT DEFAULT '',
   tiktok_url TEXT DEFAULT '',
   google_review_url TEXT DEFAULT '',
+  -- Admin settings
   counter_as_admin BOOLEAN DEFAULT false,
+  counter_kitchen_access BOOLEAN DEFAULT false,
+  counter_kot_enabled BOOLEAN DEFAULT false,
+  -- Kitchen settings
   kitchen_handles INTEGER DEFAULT 3,
+  kot_printing_enabled BOOLEAN DEFAULT false,
+  kds_enabled BOOLEAN DEFAULT false,
+  kitchen_fullscreen_mode BOOLEAN DEFAULT false,
+  -- Point system settings
   point_system_enabled BOOLEAN DEFAULT false,
   points_per_rupee DECIMAL DEFAULT 0.1,
   point_value_in_rupees DECIMAL DEFAULT 1,
   max_discount_rupees DECIMAL DEFAULT 500,
   max_discount_points INTEGER DEFAULT 500,
+  -- Theme and sound
+  theme TEXT DEFAULT 'system',
+  sound_alerts_enabled BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -457,13 +470,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ===========================================
 
 -- Insert default admin user
-INSERT INTO staff (id, username, password, role, name)
-VALUES ('admin-001', 'admin', 'admin123', 'admin', 'Administrator')
+INSERT INTO staff (id, username, password, role, name, pin)
+VALUES ('admin-001', 'admin', 'admin123', 'admin', 'Administrator', '1234')
+ON CONFLICT (username) DO NOTHING;
+
+-- Insert sample waiter (for testing)
+INSERT INTO staff (id, username, password, role, name, pin)
+VALUES ('waiter-001', 'waiter', 'waiter123', 'waiter', 'Waiter 1', '0000')
 ON CONFLICT (username) DO NOTHING;
 
 -- Insert default settings
-INSERT INTO settings (restaurant_name, table_count)
-VALUES ('My Restaurant', 10)
+INSERT INTO settings (restaurant_name, table_count, kds_enabled, sound_alerts_enabled)
+VALUES ('My Restaurant', 10, false, true)
 ON CONFLICT DO NOTHING;
 ```
 
@@ -865,6 +883,7 @@ VITE_API_URL=https://sajilo-orders-api.xxx.workers.dev
 | Setting | Description | Example |
 |---------|-------------|---------|
 | Restaurant Name | Display name | `Sajilo Cafe` |
+| Restaurant Sub Name | Optional tagline | `Digital Menu` |
 | Logo | Upload restaurant logo | 512x512 recommended |
 | Table Count | Number of tables | `15` |
 | WiFi SSID | WiFi network name | `Sajilo_Guest` |
@@ -876,7 +895,30 @@ VITE_API_URL=https://sajilo-orders-api.xxx.workers.dev
    - TikTok URL
    - Google Reviews URL
 
-4. Configure loyalty system:
+4. Configure Kitchen Display System (KDS):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| KDS Enabled | Off | When On, both Counter AND Kitchen can accept orders |
+| Kitchen Handles | 3 | Number of parallel orders kitchen can handle |
+| KOT Printing | Off | Print Kitchen Order Tickets for waiter orders |
+| Kitchen Fullscreen | Off | Fullscreen mode with larger fonts |
+
+5. Configure Counter Settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Counter as Admin | Off | Give counter staff admin access |
+| Counter Kitchen Access | Off | Allow counter to access kitchen page |
+| Counter KOT | Off | Counter can print KOT when accepting |
+
+6. Configure Sound Settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Sound Alerts | On | Play sound for new orders |
+
+7. Configure loyalty system:
 
 | Setting | Default | Recommendation |
 |---------|---------|----------------|
@@ -895,13 +937,16 @@ VITE_API_URL=https://sajilo-orders-api.xxx.workers.dev
 | Role | Purpose | Access |
 |------|---------|--------|
 | Admin | Full access | All features |
-| Counter | Order management | Counter + Kitchen |
+| Counter | Order management | Counter dashboard, billing |
+| Waiter | Mobile order taking | Waiter app, table selection |
+| Kitchen | Food preparation | Kitchen display only |
 
 For each staff:
 - Username (unique)
 - Password
-- PIN (optional, for quick actions)
-- Role (admin/counter)
+- PIN (4-6 digits, required for waiter quick login)
+- Role (admin/counter/waiter/kitchen)
+- Name (display name)
 
 ### Step 7.4: Set Up Menu
 

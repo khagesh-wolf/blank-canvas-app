@@ -72,6 +72,16 @@ CREATE INDEX IF NOT EXISTS idx_waiter_calls_status ON waiter_calls(status);
 
 -- Index for table-specific calls
 CREATE INDEX IF NOT EXISTS idx_waiter_calls_table ON waiter_calls(table_number, status);
+
+-- ===========================================
+-- STAFF TABLE INDEXES
+-- ===========================================
+
+-- Index for role-based queries (waiter orders, kitchen staff)
+CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role);
+
+-- Index for PIN-based quick login
+CREATE INDEX IF NOT EXISTS idx_staff_pin ON staff(pin) WHERE pin IS NOT NULL;
 ```
 
 ## Connection Pooling

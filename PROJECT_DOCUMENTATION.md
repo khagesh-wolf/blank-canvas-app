@@ -54,11 +54,14 @@ Sajilo Orders is a **complete restaurant management system** that replaces paper
 | Feature | Benefit |
 |---------|---------|
 | 🖥️ **Counter Dashboard** | See all tables, orders, and bills at a glance |
-| 👨‍🍳 **Kitchen Display** | Orders appear instantly - no missed tickets |
+| 👨‍🍳 **Kitchen Display (KDS)** | Orders appear instantly - no missed tickets |
 | 🗺️ **Visual Table Map** | Color-coded status for every table |
 | 🔊 **Sound Alerts** | Never miss a new order |
 | 🧾 **Receipt Printing** | Direct thermal printer support |
 | 💵 **Cash Register** | Track cash, expenses, daily totals |
+| 🛎️ **Waiter App** | Mobile-first order taking with slide-up cart panel |
+| 📲 **PIN Quick Login** | Waiters login with just a 4-digit PIN |
+| 🔔 **Ready Order Alerts** | Sound notification when orders are ready to serve |
 
 ### For You (Owner/Manager)
 
@@ -68,8 +71,10 @@ Sajilo Orders is a **complete restaurant management system** that replaces paper
 | 👥 **Customer Database** | Track visits, spending, preferences |
 | 📱 **Mobile Access** | Manage from anywhere |
 | 🌙 **Dark Mode** | Staff-friendly for evening shifts |
-| 🔐 **Role-Based Access** | Admin, Counter, Kitchen roles |
+| 🔐 **Role-Based Access** | Admin, Counter, Waiter, Kitchen roles |
 | 📥 **Export Data** | Download transactions, customer lists |
+| 📣 **Social Media Links** | Instagram, Facebook, TikTok, Google Review integration |
+| 🎛️ **Kitchen Display System (KDS)** | Toggle between Counter-only or shared order acceptance |
 
 ---
 
@@ -285,6 +290,25 @@ Can't order from same table until:
 - Staff PIN for sensitive actions
 - Role-based access control
 
+### Kitchen Display System (KDS)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  KDS Mode (Configurable in Admin Settings)                  │
+│                                                             │
+│  When KDS is OFF:                                           │
+│  • Only Counter can accept orders                           │
+│  • Kitchen sees accepted orders only                        │
+│                                                             │
+│  When KDS is ON:                                            │
+│  • Both Counter AND Kitchen can accept orders               │
+│  • Kitchen has full order control                           │
+│  • Faster workflow for busy restaurants                     │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## 📱 Works Everywhere
@@ -301,6 +325,7 @@ Can't order from same table until:
 │  • Works offline (menu browsing)                           │
 │  • Home screen icon                                        │
 │  • Fast loading                                            │
+│  • Role-specific installs (Waiter, Counter, Kitchen)       │
 │                                                            │
 │  Supported:                                                │
 │  ✓ Android phones/tablets                                  │
@@ -308,8 +333,71 @@ Can't order from same table until:
 │  ✓ Windows/Mac computers                                   │
 │  ✓ Any modern browser                                      │
 │                                                            │
+│  Install Routes:                                           │
+│  • /install/waiter  - Waiter mobile app                    │
+│  • /install/counter - Counter dashboard                    │
+│  • /install/kitchen - Kitchen display                      │
+│  • /install/admin   - Admin panel                          │
+│                                                            │
 └────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 🛎️ Waiter App
+
+### Mobile-First Order Taking
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                                                            │
+│  📱 WAITER MOBILE APP                                      │
+│                                                            │
+│  ┌──────────────────────────────────────────────────┐      │
+│  │  Quick PIN Login                                 │      │
+│  │  ───────────────                                 │      │
+│  │  Enter 4-digit PIN → Instant access              │      │
+│  └──────────────────────────────────────────────────┘      │
+│                                                            │
+│  ┌──────────────────────────────────────────────────┐      │
+│  │  Table Selection                                 │      │
+│  │  ─────────────────                               │      │
+│  │  Visual grid with table status                   │      │
+│  │  🟢 Empty  🟡 Ordering  🔴 Occupied               │      │
+│  └──────────────────────────────────────────────────┘      │
+│                                                            │
+│  ┌──────────────────────────────────────────────────┐      │
+│  │  Slide-Up Cart Panel                             │      │
+│  │  ───────────────────                             │      │
+│  │  • Swipe up to view cart                         │      │
+│  │  • Adjust quantities with +/- buttons            │      │
+│  │  • Add order notes                               │      │
+│  │  • Send to Kitchen with one tap                  │      │
+│  └──────────────────────────────────────────────────┘      │
+│                                                            │
+│  ┌──────────────────────────────────────────────────┐      │
+│  │  Ready Order Notifications                       │      │
+│  │  ─────────────────────────                       │      │
+│  │  • Sound alert when order is ready               │      │
+│  │  • Badge count for ready orders                  │      │
+│  │  • Quick view of orders to serve                 │      │
+│  └──────────────────────────────────────────────────┘      │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Waiter Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔢 **PIN Login** | Quick 4-digit PIN authentication |
+| 🗺️ **Table Grid** | Visual table selection with status colors |
+| 🛒 **Slide-Up Cart** | Mobile-friendly cart panel |
+| ➕ **Quantity Controls** | Easy +/- buttons for items |
+| 📝 **Order Notes** | Add special instructions |
+| 🔔 **Ready Alerts** | Sound notification for ready orders |
+| 📋 **Order Queue** | View all orders to serve |
+| 🌙 **Dark Mode** | Eye-friendly for any lighting |
 
 ---
 
