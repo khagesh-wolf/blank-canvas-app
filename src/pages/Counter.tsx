@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { Order, OrderItem, Expense } from '@/types';
@@ -21,7 +21,9 @@ import {
   Map,
   Calculator,
   Sun,
-  Moon
+  Moon,
+  Timer,
+  ChefHat
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { toast } from 'sonner';
@@ -34,6 +36,10 @@ import { TableMap } from '@/components/ui/TableMap';
 import { CashRegister } from '@/components/CashRegister';
 import { closeTableSession } from '@/lib/sessionManager';
 import { recordPaymentBlocksForPhones } from '@/lib/paymentBlockApi';
+
+// Order age thresholds (in seconds) for timer coloring
+const AGE_WARNING = 300; // 5 minutes - yellow
+const AGE_CRITICAL = 600; // 10 minutes - red
 
 interface BillGroup {
   key: string;
@@ -134,11 +140,42 @@ export default function Counter() {
     );
   }
 
+  // Timer refresh for KDS order age display
+  const [, forceUpdate] = useState({});
+  useEffect(() => {
+    if (settings.kdsEnabled) {
+      const interval = setInterval(() => forceUpdate({}), 10000);
+      return () => clearInterval(interval);
+    }
+  }, [settings.kdsEnabled]);
+
   // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/auth');
+    }
+  }, [isAuthenticated, navigate]);
+
   if (!isAuthenticated) {
-    navigate('/auth');
     return null;
   }
+
+  // Timer helper functions for KDS
+  const getOrderAge = (createdAt: string): number => {
+    return Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
+  };
+
+  const formatTimer = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getAgeColor = (age: number): string => {
+    if (age >= AGE_CRITICAL) return 'text-destructive bg-destructive/15 animate-pulse';
+    if (age >= AGE_WARNING) return 'text-warning bg-warning/15';
+    return 'text-success bg-success/15';
+  };
 
   // Filter orders
   const pendingOrdersRaw = orders.filter(o => o.status === 'pending');
@@ -1030,37 +1067,49 @@ export default function Counter() {
           {/* Active Bills Tab */}
           {activeTab === 'active' && (
             <div className="flex flex-wrap gap-5">
-              {billGroups.slice(0, billsLimit).map(group => (
-                <div 
-                  key={group.key}
-                  onClick={() => toggleSelectBill(group.phone)}
-                  className={`bg-card w-[280px] p-5 rounded-xl border cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
-                    selectedPhones.includes(group.phone) 
-                      ? 'border-2 border-success bg-success/5 shadow-md' 
-                      : 'border-border'
-                  }`}
-                >
-                  <div className="flex justify-between font-semibold mb-2 border-b border-dashed border-border pb-2">
-                    <span className="text-foreground">{group.phone}</span>
-                    <span className="text-muted-foreground">Table {group.tableNumber}</span>
-                  </div>
-                  <div className="mb-3 space-y-1">
-                    {group.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm text-muted-foreground">
-                        <span>{item.qty}x {item.name}</span>
-                        <span>{item.total}</span>
+              {billGroups.slice(0, billsLimit).map(group => {
+                const orderAge = getOrderAge(group.createdAt);
+                return (
+                  <div 
+                    key={group.key}
+                    onClick={() => toggleSelectBill(group.phone)}
+                    className={`bg-card w-[280px] p-5 rounded-xl border cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
+                      selectedPhones.includes(group.phone) 
+                        ? 'border-2 border-success bg-success/5 shadow-md' 
+                        : 'border-border'
+                    }`}
+                  >
+                    <div className="flex justify-between font-semibold mb-2 border-b border-dashed border-border pb-2">
+                      <span className="text-foreground">{group.phone}</span>
+                      <span className="text-muted-foreground">Table {group.tableNumber}</span>
+                    </div>
+                    
+                    {/* Timer card when KDS is enabled */}
+                    {settings.kdsEnabled && (
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold mb-3 w-fit ${getAgeColor(orderAge)}`}>
+                        <Timer className="w-3.5 h-3.5" />
+                        {formatTimer(orderAge)}
                       </div>
-                    ))}
+                    )}
+                    
+                    <div className="mb-3 space-y-1">
+                      {group.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm text-muted-foreground">
+                          <span>{item.qty}x {item.name}</span>
+                          <span>{item.total}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="font-bold text-right text-lg border-t border-border pt-2 text-foreground">
+                      रू{group.subtotal}
+                    </div>
+                    {settings.pointSystemEnabled && group.points > 0 && (
+                      <div className="text-xs text-warning mt-1">⭐ {group.points} points available</div>
+                    )}
+                    <div className="text-xs text-muted-foreground mt-1">{formatNepalTime(group.createdAt)}</div>
                   </div>
-                  <div className="font-bold text-right text-lg border-t border-border pt-2 text-foreground">
-                    रू{group.subtotal}
-                  </div>
-                  {settings.pointSystemEnabled && group.points > 0 && (
-                    <div className="text-xs text-warning mt-1">⭐ {group.points} points available</div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-1">{formatNepalTime(group.createdAt)}</div>
-                </div>
-              ))}
+                );
+              })}
               {billGroups.length === 0 && (
                 <div className="w-full text-center text-muted-foreground py-12">No unpaid bills found.</div>
               )}

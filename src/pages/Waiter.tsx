@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { OrderItem, Order, MenuItem } from '@/types';
@@ -39,6 +39,11 @@ export default function Waiter() {
   const [searchQuery, setSearchQuery] = useState('');
   const [confirmDialog, setConfirmDialog] = useState(false);
 
+  // Sound notification refs for ready orders
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const previousReadyOrderIdsRef = useRef<Set<string>>(new Set());
+  const isInitializedRef = useRef(false);
+
   // Check auth state
   useEffect(() => {
     if (isAuthenticated && currentUser) {
@@ -59,16 +64,88 @@ export default function Waiter() {
     }
   }, [isAuthenticated, currentUser, navigate]);
 
-  // Get waiter's orders (for status tracking)
+  // Get waiter's orders (for status tracking) - filter by createdBy (waiter's ID)
   const waiterOrders = useMemo(() => {
     if (!currentUser) return [];
-    return getOrdersByWaiter(currentUser.id).filter(o => 
+    return orders.filter(o => 
+      o.createdBy === currentUser.id &&
       ['accepted', 'preparing', 'ready'].includes(o.status)
     ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [currentUser, orders]);
 
   // Count ready orders for notification
   const readyOrdersCount = waiterOrders.filter(o => o.status === 'ready').length;
+  const readyOrderIds = useMemo(() => new Set(waiterOrders.filter(o => o.status === 'ready').map(o => o.id)), [waiterOrders]);
+
+  // Play sound when order becomes ready
+  const playReadySound = () => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+      
+      // Pleasant ding sound - ascending tones
+      const frequencies = [523, 659, 784]; // C5, E5, G5
+      frequencies.forEach((freq, i) => {
+        setTimeout(() => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.4);
+        }, i * 150);
+      });
+    } catch (error) {
+      console.log('Sound notification failed:', error);
+    }
+  };
+
+  // Monitor for newly ready orders and notify
+  useEffect(() => {
+    if (!currentUser || !isAuthenticated) return;
+    
+    if (!isInitializedRef.current) {
+      previousReadyOrderIdsRef.current = readyOrderIds;
+      isInitializedRef.current = true;
+      return;
+    }
+    
+    let hasNewReady = false;
+    readyOrderIds.forEach(id => {
+      if (!previousReadyOrderIdsRef.current.has(id)) {
+        hasNewReady = true;
+      }
+    });
+    
+    if (hasNewReady) {
+      playReadySound();
+      toast.success('🔔 Order is ready for pickup!', { duration: 5000 });
+    }
+    
+    previousReadyOrderIdsRef.current = readyOrderIds;
+  }, [readyOrderIds, currentUser, isAuthenticated]);
+
+  // Enable audio on first interaction
+  useEffect(() => {
+    const enableAudio = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+    };
+    document.addEventListener('click', enableAudio, { once: true });
+    return () => document.removeEventListener('click', enableAudio);
+  }, []);
 
   // Filter menu items
   const filteredMenu = useMemo(() => {
