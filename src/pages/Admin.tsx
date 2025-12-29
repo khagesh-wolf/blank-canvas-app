@@ -1588,11 +1588,11 @@ export default function Admin() {
 
         {/* Settings */}
         {tab === 'settings' && (
-          <div className="max-w-5xl">
+          <div className="max-w-6xl">
             <h2 className="text-2xl font-bold mb-6">Settings</h2>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid lg:grid-cols-2 gap-6">
               {/* Left Column */}
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {/* General Settings */}
                 <div className="bg-card rounded-xl border border-border p-5">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -1829,7 +1829,7 @@ export default function Admin() {
               </div>
 
               {/* Right Column */}
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {/* Kitchen Display System Settings */}
                 <div className="bg-card rounded-xl border border-border p-5">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
