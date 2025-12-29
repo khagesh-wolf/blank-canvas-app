@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DataProvider } from "@/components/DataProvider";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { SubscriptionGuard } from "@/components/SubscriptionGuard";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import Hub from "./pages/Hub";
 import TableOrder from "./pages/TableOrder";
 import ScanTable from "./pages/ScanTable";
@@ -22,6 +23,12 @@ import Waiter from "./pages/Waiter";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Component to handle document title updates
+const DocumentTitleUpdater = () => {
+  useDocumentTitle();
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -41,6 +48,7 @@ const App = () => (
           <Route path="/*" element={
             <SubscriptionGuard>
               <DataProvider>
+                <DocumentTitleUpdater />
                 <Routes>
                   {/* Customer landing - scan table QR */}
                   <Route path="/" element={<ScanTable />} />
