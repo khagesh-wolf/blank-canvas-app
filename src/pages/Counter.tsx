@@ -1149,13 +1149,13 @@ export default function Counter() {
                       </tr>
                     ) : (
                       filteredAcceptedOrders.slice(0, acceptedLimit).map(order => (
-                        <tr key={order.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
-                          <td className="p-3 md:p-4 text-sm">#{order.id.slice(-6)}</td>
-                          <td className="p-3 md:p-4 text-sm">{formatNepalTime(order.createdAt)}</td>
-                          <td className="p-3 md:p-4 text-sm">Table {order.tableNumber}</td>
-                          <td className="p-3 md:p-4 text-sm">{order.customerPhone}</td>
-                          <td className="p-3 md:p-4 text-sm">{order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
-                          <td className="p-3 md:p-4 font-bold text-sm">रू{order.total}</td>
+                        <tr key={order.id} className="border-t border-border hover:bg-muted/50">
+                          <td className="p-3 md:p-4 text-sm text-foreground">#{order.id.slice(-6)}</td>
+                          <td className="p-3 md:p-4 text-sm text-foreground">{formatNepalTime(order.createdAt)}</td>
+                          <td className="p-3 md:p-4 text-sm text-foreground">Table {order.tableNumber}</td>
+                          <td className="p-3 md:p-4 text-sm text-foreground">{order.customerPhone}</td>
+                          <td className="p-3 md:p-4 text-sm text-foreground">{order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}</td>
+                          <td className="p-3 md:p-4 font-bold text-sm text-foreground">रू{order.total}</td>
                         </tr>
                       ))
                     )}
@@ -1184,37 +1184,37 @@ export default function Counter() {
                 />
                 <Button onClick={() => setHistoryDate('')}>Clear Filter</Button>
               </div>
-              <div className="bg-white rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-card rounded-lg overflow-hidden shadow-sm border border-border">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse min-w-[600px]">
-                    <thead className="bg-[#f8f9fa]">
+                    <thead className="bg-muted">
                       <tr>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Bill ID</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Paid At</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Table</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Customers</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Total</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Method</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Bill ID</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Paid At</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Table</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Customers</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Total</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Method</th>
                       </tr>
                     </thead>
                     <tbody>
                       {historyData.slice(0, historyLimit).length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="text-center py-8 text-[#aaa]">No transactions found.</td>
+                          <td colSpan={6} className="text-center py-8 text-muted-foreground">No transactions found.</td>
                         </tr>
                       ) : (
                         historyData.slice(0, historyLimit).map(t => (
                           <tr 
                             key={t.id} 
-                            className="border-t border-[#eee] hover:bg-[#f9f9f9] cursor-pointer"
+                            className="border-t border-border hover:bg-muted/50 cursor-pointer"
                             onClick={() => viewTransactionDetail(t)}
                           >
-                            <td className="p-3 md:p-4 text-sm">#{t.id.slice(-6)}</td>
-                            <td className="p-3 md:p-4 text-sm">{formatNepalTime(t.paidAt)}</td>
-                            <td className="p-3 md:p-4 text-sm">Table {t.tableNumber}</td>
-                            <td className="p-3 md:p-4 text-sm">{t.customerPhones.join(', ') || 'Guest'}</td>
-                            <td className="p-3 md:p-4 font-bold text-sm">रू{t.total}</td>
-                            <td className="p-3 md:p-4 text-sm">{t.paymentMethod.toUpperCase()}</td>
+                            <td className="p-3 md:p-4 text-sm text-foreground">#{t.id.slice(-6)}</td>
+                            <td className="p-3 md:p-4 text-sm text-foreground">{formatNepalTime(t.paidAt)}</td>
+                            <td className="p-3 md:p-4 text-sm text-foreground">Table {t.tableNumber}</td>
+                            <td className="p-3 md:p-4 text-sm text-foreground">{t.customerPhones.join(', ') || 'Guest'}</td>
+                            <td className="p-3 md:p-4 font-bold text-sm text-foreground">रू{t.total}</td>
+                            <td className="p-3 md:p-4 text-sm text-foreground">{t.paymentMethod.toUpperCase()}</td>
                           </tr>
                         ))
                       )}
@@ -1238,34 +1238,34 @@ export default function Counter() {
             <div>
               <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h3 className="text-lg font-bold">Expense Tracking</h3>
-                <Button onClick={() => setExpenseModalOpen(true)} className="bg-[#333] hover:bg-[#333]/90">
+                <Button onClick={() => setExpenseModalOpen(true)} className="bg-foreground text-background hover:bg-foreground/90">
                   <Plus className="w-4 h-4 mr-2" /> Add Expense
                 </Button>
               </div>
-              <div className="bg-white rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-card rounded-lg overflow-hidden shadow-sm border border-border">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse min-w-[500px]">
-                    <thead className="bg-[#f8f9fa]">
+                    <thead className="bg-muted">
                       <tr>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Date</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Category</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Description</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Amount</th>
-                        <th className="p-3 md:p-4 text-left font-bold text-[#555] text-sm">Action</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Date</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Category</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Description</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Amount</th>
+                        <th className="p-3 md:p-4 text-left font-bold text-muted-foreground text-sm">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredExpenses.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-8 text-[#aaa]">No expenses recorded.</td>
+                          <td colSpan={5} className="text-center py-8 text-muted-foreground">No expenses recorded.</td>
                         </tr>
                       ) : (
                         filteredExpenses.slice(0, expensesLimit).map(exp => (
-                          <tr key={exp.id} className="border-t border-[#eee] hover:bg-[#f9f9f9]">
-                            <td className="p-3 md:p-4 text-sm">{formatNepalDateTime(exp.createdAt)}</td>
-                            <td className="p-3 md:p-4 capitalize text-sm">{exp.category}</td>
-                            <td className="p-3 md:p-4 text-sm">{exp.description}</td>
-                            <td className="p-3 md:p-4 font-bold text-red-600 text-sm">-रू{exp.amount}</td>
+                          <tr key={exp.id} className="border-t border-border hover:bg-muted/50">
+                            <td className="p-3 md:p-4 text-sm text-foreground">{formatNepalDateTime(exp.createdAt)}</td>
+                            <td className="p-3 md:p-4 capitalize text-sm text-foreground">{exp.category}</td>
+                            <td className="p-3 md:p-4 text-sm text-foreground">{exp.description}</td>
+                            <td className="p-3 md:p-4 font-bold text-destructive text-sm">-रू{exp.amount}</td>
                             <td className="p-3 md:p-4">
                               <Button size="sm" variant="destructive" onClick={() => { deleteExpense(exp.id); toast.success('Deleted'); }}>
                                 <Trash2 className="w-3 h-3" />
@@ -1285,10 +1285,10 @@ export default function Counter() {
                   </div>
                 )}
                 {filteredExpenses.length > 0 && (
-                  <div className="p-4 bg-[#f8f9fa] border-t border-[#eee]">
-                    <div className="flex justify-between font-bold">
+                  <div className="p-4 bg-muted border-t border-border">
+                    <div className="flex justify-between font-bold text-foreground">
                       <span>Total Expenses{searchInput ? ' (filtered)' : ''}:</span>
-                      <span className="text-red-600">-रू{filteredExpenses.reduce((sum, e) => sum + e.amount, 0)}</span>
+                      <span className="text-destructive">-रू{filteredExpenses.reduce((sum, e) => sum + e.amount, 0)}</span>
                     </div>
                   </div>
                 )}

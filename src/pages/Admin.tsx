@@ -971,9 +971,9 @@ export default function Admin() {
 
             {/* Payment Methods Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-              <div className="p-4 md:p-6 bg-[#f0f9f4] rounded-2xl border border-[#27ae60]/20">
+              <div className="p-4 md:p-6 bg-success/10 rounded-2xl border border-success/20">
                 <div className="text-xs md:text-sm text-muted-foreground mb-1">Cash Payments</div>
-                <div className="text-xl md:text-3xl font-bold text-[#27ae60]">
+                <div className="text-xl md:text-3xl font-bold text-success">
                   रू {analytics.cashTotal.toLocaleString()}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -982,9 +982,9 @@ export default function Admin() {
                     : '0%'}
                 </div>
               </div>
-              <div className="p-4 md:p-6 bg-[#fdf0f4] rounded-2xl border border-[#c32148]/20">
+              <div className="p-4 md:p-6 bg-destructive/10 rounded-2xl border border-destructive/20">
                 <div className="text-xs md:text-sm text-muted-foreground mb-1">Fonepay Payments</div>
-                <div className="text-xl md:text-3xl font-bold text-[#c32148]">
+                <div className="text-xl md:text-3xl font-bold text-destructive">
                   रू {analytics.fonepayTotal.toLocaleString()}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -2692,7 +2692,7 @@ function StatCard({ icon: Icon, label, value, color }: {
   const colorClasses = {
     primary: 'text-primary bg-primary/15',
     success: 'text-success bg-success/15',
-    accent: 'text-violet-600 bg-violet-100',
+    accent: 'text-accent-foreground bg-accent',
     warning: 'text-warning bg-warning/15',
   };
 
