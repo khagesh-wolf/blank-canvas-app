@@ -545,20 +545,22 @@ function OrderCard({
                 <span className="text-primary font-bold text-lg">{item.qty}×</span>
                 {item.name}
               </span>
-              <Button
-                size="sm"
-                variant={itemReady ? "secondary" : "default"}
-                className={`h-8 ${itemReady ? '' : 'bg-success hover:bg-success/90 text-success-foreground'}`}
-                onClick={() => {
-                  if (!itemReady) {
+              {itemReady ? (
+                <span className="h-8 w-8 flex items-center justify-center text-success">
+                  <Check className="w-5 h-5" />
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  className="h-8 bg-success hover:bg-success/90 text-success-foreground"
+                  onClick={() => {
                     onItemStatusChange(order.id, item.id, 'ready', item.qty);
                     toast.success(`${item.name} marked ready`);
-                  }
-                }}
-                disabled={itemReady}
-              >
-                {itemReady ? <Check className="w-4 h-4" /> : 'Done'}
-              </Button>
+                  }}
+                >
+                  Done
+                </Button>
+              )}
             </div>
           );
         })}
