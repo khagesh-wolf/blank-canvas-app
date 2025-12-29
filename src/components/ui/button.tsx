@@ -4,11 +4,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
-// Inline haptic trigger for performance (avoids hook overhead)
-const triggerHaptic = () => {
+type HapticIntensity = 'light' | 'medium' | 'heavy' | false;
+
+const vibrationPatterns: Record<Exclude<HapticIntensity, false>, number | number[]> = {
+  light: 10,           // Quick tap for normal actions
+  medium: 25,          // Moderate pulse for destructive actions
+  heavy: [50, 30, 50], // Strong double pulse for success/important actions
+};
+
+// Inline haptic trigger for performance
+const triggerHaptic = (intensity: Exclude<HapticIntensity, false> = 'light') => {
   if (navigator.vibrate) {
     try {
-      navigator.vibrate(10);
+      navigator.vibrate(vibrationPatterns[intensity]);
     } catch {
       // Silently fail
     }
@@ -26,6 +34,7 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        success: "bg-emerald-600 text-white hover:bg-emerald-700",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -41,11 +50,17 @@ const buttonVariants = cva(
   },
 );
 
+// Map variants to haptic intensity
+const variantHapticMap: Partial<Record<string, Exclude<HapticIntensity, false>>> = {
+  destructive: 'medium',
+  success: 'heavy',
+};
+
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
-  haptic?: boolean;
+  haptic?: HapticIntensity | true;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -54,12 +69,16 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     
     const handleClick = React.useCallback(
       (e: React.MouseEvent<HTMLButtonElement>) => {
-        if (haptic) {
-          triggerHaptic();
+        if (haptic !== false) {
+          // Determine intensity: explicit prop > variant mapping > default light
+          const intensity: Exclude<HapticIntensity, false> = 
+            typeof haptic === 'string' ? haptic : 
+            (variant && variantHapticMap[variant]) || 'light';
+          triggerHaptic(intensity);
         }
         onClick?.(e);
       },
-      [haptic, onClick]
+      [haptic, variant, onClick]
     );
     
     return (
@@ -74,4 +93,4 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
-export { Button, buttonVariants };
+export { Button, buttonVariants, triggerHaptic };
