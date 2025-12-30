@@ -1469,7 +1469,7 @@ export default function TableOrder() {
       )}
 
       {/* Floating Action Button */}
-      <div className="fixed bottom-24 right-4 z-[1500] flex flex-col-reverse items-end gap-2">
+      <div className="fixed bottom-28 right-4 z-[1500] flex flex-col-reverse items-end gap-2">
         {/* FAB Menu Items */}
         {fabOpen && (
           <>
@@ -1497,7 +1497,7 @@ export default function TableOrder() {
                 }
                 setFabOpen(false);
               }}
-              className="flex items-center gap-2 bg-warning/15 border border-warning/30 shadow-lg px-4 py-3 rounded-full text-sm font-semibold text-warning fab-item-2"
+              className="flex items-center gap-2 bg-amber-500 border border-amber-600 shadow-lg px-4 py-3 rounded-full text-sm font-semibold text-white fab-item-2"
             >
               <Bell className="w-4 h-4" /> Call Waiter
             </button>
@@ -1538,7 +1538,7 @@ export default function TableOrder() {
       )}
 
       {/* Copyright Footer */}
-      <footer className="py-4 text-center border-t border-border bg-card mt-8">
+      <footer className="py-4 text-center border-t border-border bg-card mt-8 mb-20">
         <p className="text-xs text-muted-foreground">
           © {new Date().getFullYear()} {settings.restaurantName}. Developed by{' '}
           <a href="https://khagesh.com.np" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
