@@ -80,6 +80,8 @@ export interface Customer {
   totalSpent: number;
   points: number;
   lastVisit: string;
+  firstVisit?: string;
+  tier?: 'bronze' | 'silver' | 'gold' | 'platinum'; // Generated from totalSpent
 }
 
 export interface Staff {
@@ -158,15 +160,18 @@ export interface WaiterCall {
 // INVENTORY TYPES
 // ===========================================
 
-export type InventoryUnitType = 'ml' | 'pcs' | 'grams' | 'bottle' | 'pack';
+export type InventoryUnitType = 'ml' | 'pcs' | 'grams' | 'bottle' | 'pack' | 'kg' | 'liter';
+
+export type InventoryStockStatus = 'ok' | 'low' | 'critical' | 'out';
 
 export interface InventoryItem {
   id: string;
   menuItemId: string;
   currentStock: number;
-  defaultBottleSize?: number; // Default bottle size in ml (e.g., 750ml)
+  defaultBottleSize?: number; // Container size (e.g., 750ml bottle)
   unit: InventoryUnitType;
   lowStockThreshold?: number;
+  stockStatus?: InventoryStockStatus; // Generated column for fast queries
   createdAt: string;
   updatedAt: string;
 }
@@ -211,4 +216,25 @@ export interface LowStockItem {
   currentStock: number;
   threshold: number;
   unit: InventoryUnitType;
+  stockStatus?: InventoryStockStatus;
+}
+
+// Daily stats from optimized function
+export interface DailyStatsResult {
+  totalRevenue: number;
+  totalOrders: number;
+  totalTransactions: number;
+  cashRevenue: number;
+  digitalRevenue: number;
+  totalExpenses: number;
+  netRevenue: number;
+}
+
+// Active orders summary for counter
+export interface ActiveOrdersSummary {
+  pendingCount: number;
+  acceptedCount: number;
+  preparingCount: number;
+  readyCount: number;
+  oldestPendingMinutes: number;
 }

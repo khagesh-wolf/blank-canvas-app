@@ -20,4 +20,8 @@ export {
   getLowStockItems,
   checkBackendHealth,
   getApiBaseUrl,
+  // New optimized functions
+  deductInventoryBatch,
+  getDailyStats,
+  getActiveOrdersSummary,
 } from './supabaseApi';

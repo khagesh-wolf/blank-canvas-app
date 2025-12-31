@@ -1018,7 +1018,64 @@ export const getLowStockItems = async () => {
     currentStock: Number(row.current_stock),
     threshold: Number(row.threshold),
     unit: row.unit,
+    stockStatus: row.stock_status,
   }));
+};
+
+// Batch inventory deduction (single transaction for order)
+export const deductInventoryBatch = async (
+  items: { menuItemId: string; quantity: number; unit: string }[],
+  orderId: string
+) => {
+  const { data, error } = await supabase.rpc('deduct_inventory_batch', {
+    p_items: JSON.stringify(items),
+    p_order_id: orderId,
+  });
+  if (error) {
+    console.error('[API] Batch inventory deduction failed:', error);
+    return false;
+  }
+  return data === true;
+};
+
+// Get daily stats (optimized server-side calculation)
+export const getDailyStats = async (date?: string) => {
+  const { data, error } = await supabase.rpc('get_daily_stats', {
+    target_date: date || new Date().toISOString().slice(0, 10),
+  });
+  if (error) {
+    console.error('[API] Daily stats failed:', error);
+    return null;
+  }
+  if (!data || data.length === 0) return null;
+  const row = data[0];
+  return {
+    totalRevenue: Number(row.total_revenue || 0),
+    totalOrders: Number(row.total_orders || 0),
+    totalTransactions: Number(row.total_transactions || 0),
+    cashRevenue: Number(row.cash_revenue || 0),
+    digitalRevenue: Number(row.digital_revenue || 0),
+    totalExpenses: Number(row.total_expenses || 0),
+    netRevenue: Number(row.net_revenue || 0),
+  };
+};
+
+// Get active orders summary (optimized for counter display)
+export const getActiveOrdersSummary = async () => {
+  const { data, error } = await supabase.rpc('get_active_orders_summary');
+  if (error) {
+    console.error('[API] Active orders summary failed:', error);
+    return null;
+  }
+  if (!data || data.length === 0) return null;
+  const row = data[0];
+  return {
+    pendingCount: Number(row.pending_count || 0),
+    acceptedCount: Number(row.accepted_count || 0),
+    preparingCount: Number(row.preparing_count || 0),
+    readyCount: Number(row.ready_count || 0),
+    oldestPendingMinutes: Number(row.oldest_pending_minutes || 0),
+  };
 };
 
 // Health check

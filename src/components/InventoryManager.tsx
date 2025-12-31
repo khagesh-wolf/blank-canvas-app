@@ -46,6 +46,8 @@ const DEFAULT_THRESHOLDS: Record<InventoryUnitType, number> = {
   grams: 200,   // 200 grams
   bottle: 2,    // 2 bottles
   pack: 2,      // 2 packs
+  kg: 1,        // 1 kg
+  liter: 2,     // 2 liters
 };
 
 export function InventoryManager() {

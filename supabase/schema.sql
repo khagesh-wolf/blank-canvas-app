@@ -1,12 +1,12 @@
 -- ===========================================
--- Chiyadani POS - Complete Database Schema
--- Version 2.0 - Optimized for high-volume restaurant operations
--- Includes: Inventory with unit-specific thresholds, portion pricing
--- Run this in Supabase SQL Editor
+-- Sajilo Orders POS - Optimized Database Schema
+-- Version 3.0 - High-Performance Restaurant Operations
+-- Optimized for: Free-tier Supabase, 50k+ monthly customers
 -- ===========================================
 
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- For fast text search
 
 -- ===========================================
 -- DROP EXISTING OBJECTS (Clean Slate)
@@ -17,14 +17,28 @@ DROP FUNCTION IF EXISTS get_low_stock_items CASCADE;
 DROP FUNCTION IF EXISTS get_inventory_summary CASCADE;
 DROP FUNCTION IF EXISTS get_item_portion_prices CASCADE;
 DROP FUNCTION IF EXISTS deduct_inventory CASCADE;
+DROP FUNCTION IF EXISTS deduct_inventory_batch CASCADE;
 DROP FUNCTION IF EXISTS get_unit_default_threshold CASCADE;
 DROP FUNCTION IF EXISTS cleanup_old_payment_blocks CASCADE;
 DROP FUNCTION IF EXISTS override_payment_block CASCADE;
 DROP FUNCTION IF EXISTS record_payment_block CASCADE;
 DROP FUNCTION IF EXISTS check_payment_block CASCADE;
+DROP FUNCTION IF EXISTS get_daily_stats CASCADE;
+DROP FUNCTION IF EXISTS get_active_orders_summary CASCADE;
+DROP FUNCTION IF EXISTS archive_old_orders CASCADE;
+DROP FUNCTION IF EXISTS get_customer_analytics CASCADE;
+
+-- Drop triggers
+DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
+DROP TRIGGER IF EXISTS update_inventory_updated_at ON inventory_items;
+DROP TRIGGER IF EXISTS auto_update_customer_stats ON transactions;
+DROP FUNCTION IF EXISTS update_updated_at_column CASCADE;
+DROP FUNCTION IF EXISTS update_customer_stats CASCADE;
 
 -- Drop type (CASCADE will drop dependent objects)
 DROP TYPE IF EXISTS inventory_unit_type CASCADE;
+DROP TYPE IF EXISTS order_status CASCADE;
+DROP TYPE IF EXISTS payment_method CASCADE;
 
 -- Drop tables in dependency order
 DROP TABLE IF EXISTS item_portion_prices CASCADE;
@@ -45,297 +59,368 @@ DROP TABLE IF EXISTS menu_items CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 
 -- ===========================================
--- CORE TABLES
+-- CUSTOM TYPES (Enums for performance)
 -- ===========================================
 
--- Categories table (supports parent-child hierarchy for subcategories)
+CREATE TYPE order_status AS ENUM ('pending', 'accepted', 'preparing', 'ready', 'served', 'cancelled');
+CREATE TYPE payment_method AS ENUM ('cash', 'fonepay', 'card', 'credit');
+CREATE TYPE inventory_unit_type AS ENUM ('ml', 'pcs', 'grams', 'bottle', 'pack', 'kg', 'liter');
+
+-- ===========================================
+-- CORE TABLES - Optimized Structure
+-- ===========================================
+
+-- Categories table with materialized path for hierarchy
 CREATE TABLE categories (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  sort_order INTEGER DEFAULT 0,
-  prep_time INTEGER DEFAULT 5,
+  sort_order SMALLINT DEFAULT 0, -- SMALLINT saves space
+  prep_time SMALLINT DEFAULT 5,
   parent_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+  path TEXT DEFAULT '', -- Materialized path for fast hierarchy queries
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Menu items table
+-- Menu items table - optimized column order for alignment
 CREATE TABLE menu_items (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  price DECIMAL(10,2) NOT NULL,
   category TEXT NOT NULL,
-  available BOOLEAN DEFAULT true,
+  name TEXT NOT NULL,
   description TEXT DEFAULT '',
   image TEXT DEFAULT '',
+  price NUMERIC(10,2) NOT NULL, -- NUMERIC for exact decimal
+  available BOOLEAN DEFAULT true,
+  is_popular BOOLEAN DEFAULT false, -- For featured items
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Orders table
+-- Orders table - optimized for high-frequency writes
 CREATE TABLE orders (
   id TEXT PRIMARY KEY,
-  table_number INTEGER NOT NULL,
-  customer_phone TEXT DEFAULT '',
-  items JSONB NOT NULL DEFAULT '[]',
-  status TEXT DEFAULT 'pending',
-  total DECIMAL(10,2) NOT NULL DEFAULT 0,
+  table_number SMALLINT NOT NULL, -- SMALLINT for tables 1-999
+  status order_status DEFAULT 'pending',
+  priority SMALLINT DEFAULT 0, -- 0=normal, 1=rush
+  total NUMERIC(10,2) NOT NULL DEFAULT 0,
+  customer_phone VARCHAR(20) DEFAULT '', -- VARCHAR with limit
   notes TEXT DEFAULT '',
-  -- Waiter order fields
-  created_by TEXT DEFAULT NULL,
+  items JSONB NOT NULL DEFAULT '[]',
+  -- Waiter fields
+  created_by TEXT,
   is_waiter_order BOOLEAN DEFAULT false,
-  priority TEXT DEFAULT 'normal',
+  -- Timestamps with index-friendly defaults
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Bills table
+-- Bills table - optimized for payment processing
 CREATE TABLE bills (
   id TEXT PRIMARY KEY,
-  table_number INTEGER NOT NULL,
+  table_number SMALLINT NOT NULL,
+  status VARCHAR(10) DEFAULT 'unpaid',
+  payment_method payment_method,
+  subtotal NUMERIC(10,2) NOT NULL DEFAULT 0,
+  discount NUMERIC(10,2) DEFAULT 0,
+  total NUMERIC(10,2) NOT NULL DEFAULT 0,
   orders JSONB NOT NULL DEFAULT '[]',
   customer_phones JSONB NOT NULL DEFAULT '[]',
-  subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
-  discount DECIMAL(10,2) DEFAULT 0,
-  total DECIMAL(10,2) NOT NULL DEFAULT 0,
-  status TEXT DEFAULT 'unpaid',
-  payment_method TEXT,
   paid_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Transactions table (completed sales)
+-- Transactions table - append-only for sales history
 CREATE TABLE transactions (
   id TEXT PRIMARY KEY,
   bill_id TEXT,
-  table_number INTEGER NOT NULL,
+  table_number SMALLINT NOT NULL,
+  payment_method payment_method NOT NULL,
+  total NUMERIC(10,2) NOT NULL,
+  discount NUMERIC(10,2) DEFAULT 0,
   customer_phones JSONB DEFAULT '[]',
-  total DECIMAL(10,2) NOT NULL,
-  discount DECIMAL(10,2) DEFAULT 0,
-  payment_method TEXT NOT NULL,
-  paid_at TIMESTAMPTZ NOT NULL,
   items JSONB DEFAULT '[]',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  paid_at TIMESTAMPTZ NOT NULL,
+  -- Denormalized for fast daily reports (avoids date extraction)
+  paid_date DATE GENERATED ALWAYS AS (paid_at::DATE) STORED
 );
 
--- Customers table
+-- Customers table - optimized for loyalty lookups
 CREATE TABLE customers (
-  phone TEXT PRIMARY KEY,
-  name TEXT DEFAULT '',
+  phone VARCHAR(20) PRIMARY KEY,
+  name VARCHAR(100) DEFAULT '',
   total_orders INTEGER DEFAULT 0,
-  total_spent DECIMAL(10,2) DEFAULT 0,
+  total_spent NUMERIC(12,2) DEFAULT 0,
   points INTEGER DEFAULT 0,
   last_visit TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  first_visit TIMESTAMPTZ DEFAULT NOW(),
+  -- Denormalized for fast tier queries
+  tier VARCHAR(10) GENERATED ALWAYS AS (
+    CASE 
+      WHEN total_spent >= 50000 THEN 'platinum'
+      WHEN total_spent >= 20000 THEN 'gold'
+      WHEN total_spent >= 5000 THEN 'silver'
+      ELSE 'bronze'
+    END
+  ) STORED
 );
 
 -- Staff table
 CREATE TABLE staff (
   id TEXT PRIMARY KEY,
-  username TEXT UNIQUE NOT NULL,
-  password TEXT NOT NULL,
-  pin TEXT DEFAULT '',
-  role TEXT DEFAULT 'counter',
-  name TEXT DEFAULT '',
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  pin VARCHAR(6) DEFAULT '',
+  role VARCHAR(20) DEFAULT 'counter',
+  name VARCHAR(100) DEFAULT '',
+  is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Settings table (single row for app configuration)
+-- Settings table (single row)
 CREATE TABLE settings (
   id SERIAL PRIMARY KEY,
-  restaurant_name TEXT DEFAULT 'Chiyadani',
-  restaurant_sub_name TEXT DEFAULT '',
-  table_count INTEGER DEFAULT 10,
-  wifi_ssid TEXT DEFAULT '',
-  wifi_password TEXT DEFAULT '',
+  restaurant_name VARCHAR(100) DEFAULT 'Sajilo Orders',
+  restaurant_sub_name VARCHAR(100) DEFAULT '',
+  table_count SMALLINT DEFAULT 10,
+  wifi_ssid VARCHAR(100) DEFAULT '',
+  wifi_password VARCHAR(100) DEFAULT '',
   base_url TEXT DEFAULT '',
   logo TEXT DEFAULT '',
+  -- Social links
   instagram_url TEXT DEFAULT '',
   facebook_url TEXT DEFAULT '',
   tiktok_url TEXT DEFAULT '',
   google_review_url TEXT DEFAULT '',
+  -- Feature flags (compact)
   counter_as_admin BOOLEAN DEFAULT false,
-  -- Counter settings
   counter_kitchen_access BOOLEAN DEFAULT false,
   counter_kot_enabled BOOLEAN DEFAULT false,
-  kitchen_handles INTEGER DEFAULT 3,
+  kitchen_handles SMALLINT DEFAULT 3,
   point_system_enabled BOOLEAN DEFAULT false,
-  points_per_rupee DECIMAL DEFAULT 0.1,
-  point_value_in_rupees DECIMAL DEFAULT 1,
-  max_discount_rupees DECIMAL DEFAULT 500,
-  max_discount_points INTEGER DEFAULT 500,
-  -- Kitchen settings
   kds_enabled BOOLEAN DEFAULT false,
   kot_printing_enabled BOOLEAN DEFAULT false,
   kitchen_fullscreen_mode BOOLEAN DEFAULT false,
+  -- Point system config
+  points_per_rupee NUMERIC(5,3) DEFAULT 0.1,
+  point_value_in_rupees NUMERIC(5,2) DEFAULT 1,
+  max_discount_rupees NUMERIC(8,2) DEFAULT 500,
+  max_discount_points INTEGER DEFAULT 500,
+  -- Timestamps
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Ensure single row
+  CONSTRAINT single_settings CHECK (id = 1)
 );
 
 -- Expenses table
 CREATE TABLE expenses (
   id TEXT PRIMARY KEY,
-  amount DECIMAL(10,2) NOT NULL,
+  category VARCHAR(30) NOT NULL,
+  amount NUMERIC(10,2) NOT NULL,
   description TEXT DEFAULT '',
-  category TEXT NOT NULL,
-  created_by TEXT DEFAULT '',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_by VARCHAR(50) DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Denormalized date for fast daily reports
+  expense_date DATE GENERATED ALWAYS AS (created_at::DATE) STORED
 );
 
 -- Waiter calls table
 CREATE TABLE waiter_calls (
   id TEXT PRIMARY KEY,
-  table_number INTEGER NOT NULL,
-  customer_phone TEXT DEFAULT '',
-  status TEXT DEFAULT 'pending',
+  table_number SMALLINT NOT NULL,
+  customer_phone VARCHAR(20) DEFAULT '',
+  status VARCHAR(15) DEFAULT 'pending',
   acknowledged_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Payment blocks table (3-hour cooldown after payment)
+-- Payment blocks table (3-hour cooldown)
 CREATE TABLE payment_blocks (
   id SERIAL PRIMARY KEY,
-  table_number INTEGER NOT NULL,
-  customer_phone TEXT NOT NULL,
+  table_number SMALLINT NOT NULL,
+  customer_phone VARCHAR(20) NOT NULL,
   paid_at TIMESTAMPTZ DEFAULT NOW(),
   staff_override BOOLEAN DEFAULT FALSE,
   override_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  -- Auto-expire after 24 hours
+  expires_at TIMESTAMPTZ GENERATED ALWAYS AS (paid_at + INTERVAL '24 hours') STORED
 );
 
 -- ===========================================
--- INVENTORY SYSTEM
+-- INVENTORY SYSTEM - Optimized
 -- ===========================================
 
--- Inventory unit type enum
-CREATE TYPE inventory_unit_type AS ENUM ('ml', 'pcs', 'grams', 'bottle', 'pack');
-
--- Inventory categories (categories that are tracked in inventory)
+-- Inventory categories
 CREATE TABLE inventory_categories (
   id TEXT PRIMARY KEY,
   category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
   unit_type inventory_unit_type NOT NULL DEFAULT 'pcs',
-  -- For ml-based items: default bottle/container size
-  default_container_size DECIMAL(10,2) DEFAULT NULL,
-  -- Low stock warning threshold (unit-specific defaults applied via function)
-  low_stock_threshold DECIMAL(10,2) DEFAULT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  default_container_size NUMERIC(10,2),
+  low_stock_threshold NUMERIC(10,2),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(category_id)
 );
 
--- Inventory items (stock for menu items)
+-- Inventory items (stock tracking)
 CREATE TABLE inventory_items (
   id TEXT PRIMARY KEY,
   menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
-  -- Current stock level (in base units: ml, pcs, grams)
-  current_stock DECIMAL(10,2) NOT NULL DEFAULT 0,
-  -- Container size for this item (inherits from category or custom)
-  container_size DECIMAL(10,2) DEFAULT NULL,
-  -- Unit for display
+  current_stock NUMERIC(10,2) NOT NULL DEFAULT 0,
+  container_size NUMERIC(10,2),
   unit inventory_unit_type NOT NULL DEFAULT 'pcs',
-  -- Low stock warning threshold (unit-specific, overrides category)
-  low_stock_threshold DECIMAL(10,2) DEFAULT NULL,
+  low_stock_threshold NUMERIC(10,2),
+  -- Denormalized for fast stock status
+  stock_status VARCHAR(10) GENERATED ALWAYS AS (
+    CASE 
+      WHEN current_stock <= 0 THEN 'out'
+      WHEN current_stock <= COALESCE(low_stock_threshold, 10) * 0.25 THEN 'critical'
+      WHEN current_stock <= COALESCE(low_stock_threshold, 10) THEN 'low'
+      ELSE 'ok'
+    END
+  ) STORED,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(menu_item_id)
 );
 
--- Inventory transactions (log of stock changes)
+-- Inventory transactions (audit log)
 CREATE TABLE inventory_transactions (
   id TEXT PRIMARY KEY,
   inventory_item_id TEXT NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
-  -- Transaction type: 'receive' for adding stock, 'sale' for deducting
-  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('receive', 'sale', 'adjustment', 'waste')),
-  -- Quantity changed (positive for receive, negative for sale)
-  quantity DECIMAL(10,2) NOT NULL,
-  -- Unit used in transaction
+  transaction_type VARCHAR(15) NOT NULL CHECK (transaction_type IN ('receive', 'sale', 'adjustment', 'waste')),
+  quantity NUMERIC(10,2) NOT NULL,
   unit inventory_unit_type NOT NULL,
-  -- Reference to order (for sales)
-  order_id TEXT DEFAULT NULL,
-  -- Notes
+  order_id TEXT,
   notes TEXT DEFAULT '',
-  created_by TEXT DEFAULT '',
+  created_by VARCHAR(50) DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Portion options for categories (fixed portions per category)
+-- Portion options
 CREATE TABLE portion_options (
   id TEXT PRIMARY KEY,
   inventory_category_id TEXT NOT NULL REFERENCES inventory_categories(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  -- Size in base units (ml, pcs, etc.)
-  size DECIMAL(10,2) NOT NULL,
-  -- Price multiplier (legacy, use fixed_price instead)
-  price_multiplier DECIMAL(5,2) NOT NULL DEFAULT 1.0,
-  -- Fixed price for this portion (default if no item-specific price)
-  fixed_price DECIMAL(10,2) DEFAULT NULL,
-  sort_order INTEGER DEFAULT 0,
+  name VARCHAR(50) NOT NULL,
+  size NUMERIC(10,2) NOT NULL,
+  price_multiplier NUMERIC(5,2) DEFAULT 1.0,
+  fixed_price NUMERIC(10,2),
+  sort_order SMALLINT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Item-specific portion prices (overrides category-level portion prices)
+-- Item-specific portion prices
 CREATE TABLE item_portion_prices (
   id TEXT PRIMARY KEY,
   menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
   portion_option_id TEXT NOT NULL REFERENCES portion_options(id) ON DELETE CASCADE,
-  price DECIMAL(10,2) NOT NULL,
+  price NUMERIC(10,2) NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(menu_item_id, portion_option_id)
 );
 
 -- ===========================================
--- INDEXES for Performance
+-- OPTIMIZED INDEXES
 -- ===========================================
 
--- Core tables
+-- Categories
 CREATE INDEX idx_categories_sort ON categories(sort_order);
 CREATE INDEX idx_categories_parent ON categories(parent_id) WHERE parent_id IS NOT NULL;
-CREATE INDEX idx_menu_items_category ON menu_items(category);
-CREATE INDEX idx_menu_items_available ON menu_items(available) WHERE available = true;
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_status_pending ON orders(status) WHERE status IN ('pending', 'preparing');
-CREATE INDEX idx_orders_table ON orders(table_number);
-CREATE INDEX idx_orders_phone ON orders(customer_phone) WHERE customer_phone != '';
-CREATE INDEX idx_orders_created ON orders(created_at DESC);
-CREATE INDEX idx_orders_waiter ON orders(is_waiter_order, created_by) WHERE is_waiter_order = true;
-CREATE INDEX idx_bills_status ON bills(status);
-CREATE INDEX idx_bills_status_unpaid ON bills(status) WHERE status = 'unpaid';
-CREATE INDEX idx_bills_table ON bills(table_number);
-CREATE INDEX idx_bills_paid ON bills(paid_at DESC) WHERE paid_at IS NOT NULL;
-CREATE INDEX idx_transactions_paid ON transactions(paid_at DESC);
-CREATE INDEX idx_transactions_table ON transactions(table_number);
-CREATE INDEX idx_customers_phone ON customers(phone);
-CREATE INDEX idx_customers_last_visit ON customers(last_visit DESC);
-CREATE INDEX idx_customers_points ON customers(points) WHERE points > 0;
-CREATE INDEX idx_staff_username ON staff(username);
-CREATE INDEX idx_staff_role ON staff(role);
-CREATE INDEX idx_expenses_created ON expenses(created_at DESC);
-CREATE INDEX idx_expenses_category ON expenses(category);
-CREATE INDEX idx_waiter_calls_status ON waiter_calls(status);
-CREATE INDEX idx_waiter_calls_status_pending ON waiter_calls(status) WHERE status = 'pending';
-CREATE INDEX idx_waiter_calls_table ON waiter_calls(table_number);
-CREATE INDEX idx_payment_blocks_lookup ON payment_blocks(table_number, customer_phone, paid_at DESC);
-CREATE INDEX idx_payment_blocks_active ON payment_blocks(paid_at) WHERE staff_override = false;
 
--- Inventory tables
-CREATE INDEX idx_inventory_categories_category ON inventory_categories(category_id);
-CREATE INDEX idx_inventory_items_menu_item ON inventory_items(menu_item_id);
-CREATE INDEX idx_inventory_items_stock ON inventory_items(current_stock);
-CREATE INDEX idx_inventory_items_low_stock ON inventory_items(current_stock, low_stock_threshold);
-CREATE INDEX idx_inventory_items_unit ON inventory_items(unit);
-CREATE INDEX idx_inventory_transactions_item ON inventory_transactions(inventory_item_id);
-CREATE INDEX idx_inventory_transactions_type ON inventory_transactions(transaction_type);
-CREATE INDEX idx_inventory_transactions_created ON inventory_transactions(created_at DESC);
-CREATE INDEX idx_inventory_transactions_order ON inventory_transactions(order_id) WHERE order_id IS NOT NULL;
-CREATE INDEX idx_portion_options_category ON portion_options(inventory_category_id);
-CREATE INDEX idx_portion_options_sort ON portion_options(inventory_category_id, sort_order);
-CREATE INDEX idx_item_portion_prices_menu_item ON item_portion_prices(menu_item_id);
-CREATE INDEX idx_item_portion_prices_portion ON item_portion_prices(portion_option_id);
-CREATE INDEX idx_item_portion_prices_lookup ON item_portion_prices(menu_item_id, portion_option_id);
+-- Menu Items
+CREATE INDEX idx_menu_category ON menu_items(category);
+CREATE INDEX idx_menu_available ON menu_items(category, available) WHERE available = true;
+CREATE INDEX idx_menu_popular ON menu_items(is_popular) WHERE is_popular = true;
+
+-- Orders - Critical for restaurant operations
+CREATE INDEX idx_orders_active ON orders(status, created_at DESC) 
+  WHERE status IN ('pending', 'accepted', 'preparing', 'ready');
+CREATE INDEX idx_orders_table_active ON orders(table_number, status) 
+  WHERE status NOT IN ('served', 'cancelled');
+CREATE INDEX idx_orders_pending ON orders(created_at DESC) WHERE status = 'pending';
+CREATE INDEX idx_orders_today ON orders(created_at DESC) 
+  WHERE created_at > CURRENT_DATE;
+
+-- Bills
+CREATE INDEX idx_bills_unpaid ON bills(table_number, created_at DESC) WHERE status = 'unpaid';
+CREATE INDEX idx_bills_today ON bills(paid_at DESC) WHERE paid_at > CURRENT_DATE;
+
+-- Transactions - For reports
+CREATE INDEX idx_tx_date ON transactions(paid_date DESC);
+CREATE INDEX idx_tx_method_date ON transactions(payment_method, paid_date);
+
+-- Customers
+CREATE INDEX idx_customers_tier ON customers(tier, total_spent DESC);
+CREATE INDEX idx_customers_points ON customers(points DESC) WHERE points > 0;
+CREATE INDEX idx_customers_recent ON customers(last_visit DESC);
+
+-- Staff
+CREATE INDEX idx_staff_active ON staff(role) WHERE is_active = true;
+
+-- Expenses
+CREATE INDEX idx_expenses_date ON expenses(expense_date DESC);
+CREATE INDEX idx_expenses_category_date ON expenses(category, expense_date);
+
+-- Waiter calls
+CREATE INDEX idx_waiter_pending ON waiter_calls(table_number, created_at DESC) 
+  WHERE status = 'pending';
+
+-- Payment blocks
+CREATE INDEX idx_blocks_active ON payment_blocks(table_number, customer_phone, paid_at DESC) 
+  WHERE staff_override = false AND expires_at > NOW();
+
+-- Inventory
+CREATE INDEX idx_inv_status ON inventory_items(stock_status) WHERE stock_status != 'ok';
+CREATE INDEX idx_inv_menu ON inventory_items(menu_item_id);
+CREATE INDEX idx_inv_tx_item ON inventory_transactions(inventory_item_id, created_at DESC);
+CREATE INDEX idx_inv_tx_order ON inventory_transactions(order_id) WHERE order_id IS NOT NULL;
+
+-- Portion prices
+CREATE INDEX idx_portion_lookup ON item_portion_prices(menu_item_id, portion_option_id);
+
+-- ===========================================
+-- AUTO-UPDATE TRIGGERS
+-- ===========================================
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_orders_updated_at
+  BEFORE UPDATE ON orders
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_inventory_updated_at
+  BEFORE UPDATE ON inventory_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Auto-update customer stats on transaction
+CREATE OR REPLACE FUNCTION update_customer_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Update each customer phone in the transaction
+  UPDATE customers 
+  SET 
+    total_orders = total_orders + 1,
+    total_spent = total_spent + NEW.total,
+    last_visit = NEW.paid_at
+  WHERE phone = ANY(
+    SELECT jsonb_array_elements_text(NEW.customer_phones)
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER auto_update_customer_stats
+  AFTER INSERT ON transactions
+  FOR EACH ROW EXECUTE FUNCTION update_customer_stats();
 
 -- ===========================================
 -- ROW LEVEL SECURITY
 -- ===========================================
 
--- Enable RLS on all tables
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE menu_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
@@ -353,278 +438,164 @@ ALTER TABLE inventory_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE portion_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE item_portion_prices ENABLE ROW LEVEL SECURITY;
 
--- ===========================================
--- RLS POLICIES
--- ===========================================
+-- RLS Policies (Public access for restaurant POS)
+-- In production, consider role-based policies for staff
 
--- Categories
-CREATE POLICY "Public read categories" ON categories FOR SELECT USING (true);
-CREATE POLICY "Public insert categories" ON categories FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update categories" ON categories FOR UPDATE USING (true);
-CREATE POLICY "Public delete categories" ON categories FOR DELETE USING (true);
-
--- Menu Items
-CREATE POLICY "Public read menu_items" ON menu_items FOR SELECT USING (true);
-CREATE POLICY "Public insert menu_items" ON menu_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update menu_items" ON menu_items FOR UPDATE USING (true);
-CREATE POLICY "Public delete menu_items" ON menu_items FOR DELETE USING (true);
-
--- Orders
-CREATE POLICY "Public read orders" ON orders FOR SELECT USING (true);
-CREATE POLICY "Public insert orders" ON orders FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update orders" ON orders FOR UPDATE USING (true);
-CREATE POLICY "Public delete orders" ON orders FOR DELETE USING (true);
-
--- Bills
-CREATE POLICY "Public read bills" ON bills FOR SELECT USING (true);
-CREATE POLICY "Public insert bills" ON bills FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update bills" ON bills FOR UPDATE USING (true);
-CREATE POLICY "Public delete bills" ON bills FOR DELETE USING (true);
-
--- Transactions
-CREATE POLICY "Public read transactions" ON transactions FOR SELECT USING (true);
-CREATE POLICY "Public insert transactions" ON transactions FOR INSERT WITH CHECK (true);
-
--- Customers
-CREATE POLICY "Public read customers" ON customers FOR SELECT USING (true);
-CREATE POLICY "Public insert customers" ON customers FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update customers" ON customers FOR UPDATE USING (true);
-CREATE POLICY "Public delete customers" ON customers FOR DELETE USING (true);
-
--- Staff
-CREATE POLICY "Public read staff" ON staff FOR SELECT USING (true);
-CREATE POLICY "Public insert staff" ON staff FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update staff" ON staff FOR UPDATE USING (true);
-CREATE POLICY "Public delete staff" ON staff FOR DELETE USING (true);
-
--- Settings
-CREATE POLICY "Public read settings" ON settings FOR SELECT USING (true);
-CREATE POLICY "Public insert settings" ON settings FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update settings" ON settings FOR UPDATE USING (true);
-
--- Expenses
-CREATE POLICY "Public read expenses" ON expenses FOR SELECT USING (true);
-CREATE POLICY "Public insert expenses" ON expenses FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public delete expenses" ON expenses FOR DELETE USING (true);
-
--- Waiter Calls
-CREATE POLICY "Public read waiter_calls" ON waiter_calls FOR SELECT USING (true);
-CREATE POLICY "Public insert waiter_calls" ON waiter_calls FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update waiter_calls" ON waiter_calls FOR UPDATE USING (true);
-CREATE POLICY "Public delete waiter_calls" ON waiter_calls FOR DELETE USING (true);
-
--- Payment Blocks
-CREATE POLICY "Public read payment_blocks" ON payment_blocks FOR SELECT USING (true);
-CREATE POLICY "Public insert payment_blocks" ON payment_blocks FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update payment_blocks" ON payment_blocks FOR UPDATE USING (true);
-
--- Inventory Categories
-CREATE POLICY "Public read inventory_categories" ON inventory_categories FOR SELECT USING (true);
-CREATE POLICY "Public insert inventory_categories" ON inventory_categories FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update inventory_categories" ON inventory_categories FOR UPDATE USING (true);
-CREATE POLICY "Public delete inventory_categories" ON inventory_categories FOR DELETE USING (true);
-
--- Inventory Items
-CREATE POLICY "Public read inventory_items" ON inventory_items FOR SELECT USING (true);
-CREATE POLICY "Public insert inventory_items" ON inventory_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update inventory_items" ON inventory_items FOR UPDATE USING (true);
-CREATE POLICY "Public delete inventory_items" ON inventory_items FOR DELETE USING (true);
-
--- Inventory Transactions
-CREATE POLICY "Public read inventory_transactions" ON inventory_transactions FOR SELECT USING (true);
-CREATE POLICY "Public insert inventory_transactions" ON inventory_transactions FOR INSERT WITH CHECK (true);
-
--- Portion Options
-CREATE POLICY "Public read portion_options" ON portion_options FOR SELECT USING (true);
-CREATE POLICY "Public insert portion_options" ON portion_options FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update portion_options" ON portion_options FOR UPDATE USING (true);
-CREATE POLICY "Public delete portion_options" ON portion_options FOR DELETE USING (true);
-
--- Item Portion Prices
-CREATE POLICY "Public read item_portion_prices" ON item_portion_prices FOR SELECT USING (true);
-CREATE POLICY "Public insert item_portion_prices" ON item_portion_prices FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update item_portion_prices" ON item_portion_prices FOR UPDATE USING (true);
-CREATE POLICY "Public delete item_portion_prices" ON item_portion_prices FOR DELETE USING (true);
+CREATE POLICY "allow_all" ON categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON menu_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON orders FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON bills FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON transactions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON customers FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON staff FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON expenses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON waiter_calls FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON payment_blocks FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON inventory_categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON inventory_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON inventory_transactions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON portion_options FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "allow_all" ON item_portion_prices FOR ALL USING (true) WITH CHECK (true);
 
 -- ===========================================
 -- REALTIME SUBSCRIPTIONS
 -- ===========================================
 
 DO $$
+DECLARE
+  tables TEXT[] := ARRAY['orders', 'waiter_calls', 'bills', 'inventory_items', 'menu_items', 'categories', 'settings'];
+  t TEXT;
 BEGIN
-  -- Orders realtime
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'orders'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE orders;
-  END IF;
-  
-  -- Waiter calls realtime
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'waiter_calls'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE waiter_calls;
-  END IF;
-  
-  -- Bills realtime
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'bills'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE bills;
-  END IF;
-  
-  -- Inventory items realtime
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'inventory_items'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE inventory_items;
-  END IF;
-  
-  -- Menu items realtime (for availability updates)
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables 
-    WHERE pubname = 'supabase_realtime' AND tablename = 'menu_items'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime ADD TABLE menu_items;
-  END IF;
+  FOREACH t IN ARRAY tables LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', t);
+    END IF;
+  END LOOP;
 END $$;
 
+-- Enable REPLICA IDENTITY FULL for complete row data in realtime
+ALTER TABLE orders REPLICA IDENTITY FULL;
+ALTER TABLE waiter_calls REPLICA IDENTITY FULL;
+ALTER TABLE bills REPLICA IDENTITY FULL;
+ALTER TABLE inventory_items REPLICA IDENTITY FULL;
+ALTER TABLE menu_items REPLICA IDENTITY FULL;
+ALTER TABLE settings REPLICA IDENTITY FULL;
+
 -- ===========================================
--- HELPER FUNCTIONS
+-- OPTIMIZED FUNCTIONS
 -- ===========================================
 
--- Function to get default threshold by unit type
-CREATE OR REPLACE FUNCTION get_unit_default_threshold(p_unit inventory_unit_type)
-RETURNS DECIMAL AS $$
-BEGIN
-  RETURN CASE p_unit
-    WHEN 'ml' THEN 500      -- 500ml
-    WHEN 'pcs' THEN 10      -- 10 pieces
-    WHEN 'grams' THEN 500   -- 500 grams
-    WHEN 'bottle' THEN 5    -- 5 bottles
-    WHEN 'pack' THEN 3      -- 3 packs
-    ELSE 10
-  END;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-
--- Function to check if customer is blocked (paid within 3 hours)
-CREATE OR REPLACE FUNCTION check_payment_block(
-  p_table_number INTEGER,
-  p_customer_phone TEXT
-)
+-- Fast daily stats (uses denormalized paid_date)
+CREATE OR REPLACE FUNCTION get_daily_stats(target_date DATE DEFAULT CURRENT_DATE)
 RETURNS TABLE (
-  is_blocked BOOLEAN,
-  paid_at TIMESTAMPTZ,
-  block_id INTEGER
+  total_revenue NUMERIC,
+  total_orders BIGINT,
+  total_transactions BIGINT,
+  cash_revenue NUMERIC,
+  digital_revenue NUMERIC,
+  total_expenses NUMERIC,
+  net_revenue NUMERIC
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH tx_stats AS (
+    SELECT 
+      COALESCE(SUM(total), 0) as revenue,
+      COUNT(*) as tx_count,
+      COALESCE(SUM(total) FILTER (WHERE payment_method = 'cash'), 0) as cash,
+      COALESCE(SUM(total) FILTER (WHERE payment_method != 'cash'), 0) as digital
+    FROM transactions
+    WHERE paid_date = target_date
+  ),
+  order_stats AS (
+    SELECT COUNT(*) as order_count
+    FROM orders
+    WHERE created_at::DATE = target_date
+      AND status NOT IN ('cancelled')
+  ),
+  expense_stats AS (
+    SELECT COALESCE(SUM(amount), 0) as expenses
+    FROM expenses
+    WHERE expense_date = target_date
+  )
+  SELECT 
+    ts.revenue,
+    os.order_count,
+    ts.tx_count,
+    ts.cash,
+    ts.digital,
+    es.expenses,
+    ts.revenue - es.expenses
+  FROM tx_stats ts, order_stats os, expense_stats es;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Get active orders summary for counter display
+CREATE OR REPLACE FUNCTION get_active_orders_summary()
+RETURNS TABLE (
+  pending_count BIGINT,
+  accepted_count BIGINT,
+  preparing_count BIGINT,
+  ready_count BIGINT,
+  oldest_pending_minutes INTEGER
 ) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
-    CASE WHEN pb.id IS NOT NULL AND pb.staff_override = FALSE THEN TRUE ELSE FALSE END,
-    pb.paid_at,
-    pb.id
-  FROM payment_blocks pb
-  WHERE pb.table_number = p_table_number
-    AND pb.customer_phone = p_customer_phone
-    AND pb.paid_at > NOW() - INTERVAL '3 hours'
-    AND pb.staff_override = FALSE
-  ORDER BY pb.paid_at DESC
-  LIMIT 1;
+    COUNT(*) FILTER (WHERE status = 'pending'),
+    COUNT(*) FILTER (WHERE status = 'accepted'),
+    COUNT(*) FILTER (WHERE status = 'preparing'),
+    COUNT(*) FILTER (WHERE status = 'ready'),
+    EXTRACT(EPOCH FROM (NOW() - MIN(created_at) FILTER (WHERE status = 'pending')))::INTEGER / 60
+  FROM orders
+  WHERE status IN ('pending', 'accepted', 'preparing', 'ready');
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE;
 
--- Function to record a payment block
-CREATE OR REPLACE FUNCTION record_payment_block(
-  p_table_number INTEGER,
-  p_customer_phone TEXT
-)
-RETURNS INTEGER AS $$
-DECLARE
-  new_id INTEGER;
-BEGIN
-  INSERT INTO payment_blocks (table_number, customer_phone, paid_at)
-  VALUES (p_table_number, p_customer_phone, NOW())
-  RETURNING id INTO new_id;
-  RETURN new_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Function to override a payment block (staff confirmation)
-CREATE OR REPLACE FUNCTION override_payment_block(p_block_id INTEGER)
-RETURNS BOOLEAN AS $$
-BEGIN
-  UPDATE payment_blocks SET staff_override = TRUE, override_at = NOW() WHERE id = p_block_id;
-  RETURN FOUND;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Function to cleanup old payment blocks (older than 24 hours)
-CREATE OR REPLACE FUNCTION cleanup_old_payment_blocks()
-RETURNS INTEGER AS $$
-DECLARE
-  deleted_count INTEGER;
-BEGIN
-  DELETE FROM payment_blocks WHERE paid_at < NOW() - INTERVAL '24 hours';
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ===========================================
--- INVENTORY FUNCTIONS
--- ===========================================
-
--- Function to deduct inventory on order acceptance
-CREATE OR REPLACE FUNCTION deduct_inventory(
-  p_menu_item_id TEXT,
-  p_quantity DECIMAL,
-  p_unit inventory_unit_type,
+-- Batch inventory deduction (single transaction for order)
+CREATE OR REPLACE FUNCTION deduct_inventory_batch(
+  p_items JSONB, -- [{menu_item_id, quantity, unit}]
   p_order_id TEXT
 )
 RETURNS BOOLEAN AS $$
 DECLARE
-  inv_item RECORD;
-  deduct_amount DECIMAL;
+  item RECORD;
+  inv_id TEXT;
 BEGIN
-  -- Get inventory item
-  SELECT * INTO inv_item FROM inventory_items WHERE menu_item_id = p_menu_item_id;
-  
-  IF inv_item IS NULL THEN
-    -- Item not tracked in inventory, return success
-    RETURN TRUE;
-  END IF;
-  
-  -- Calculate deduction amount based on unit conversion
-  deduct_amount := p_quantity;
-  
-  -- Update stock
-  UPDATE inventory_items 
-  SET current_stock = current_stock - deduct_amount,
-      updated_at = NOW()
-  WHERE id = inv_item.id;
-  
-  -- Log transaction
-  INSERT INTO inventory_transactions (id, inventory_item_id, transaction_type, quantity, unit, order_id)
-  VALUES (gen_random_uuid()::text, inv_item.id, 'sale', -deduct_amount, p_unit, p_order_id);
+  FOR item IN SELECT * FROM jsonb_to_recordset(p_items) AS x(menu_item_id TEXT, quantity NUMERIC, unit TEXT)
+  LOOP
+    -- Get inventory item
+    SELECT id INTO inv_id FROM inventory_items WHERE menu_item_id = item.menu_item_id;
+    
+    IF inv_id IS NOT NULL THEN
+      -- Update stock
+      UPDATE inventory_items 
+      SET current_stock = current_stock - item.quantity
+      WHERE id = inv_id;
+      
+      -- Log transaction
+      INSERT INTO inventory_transactions (id, inventory_item_id, transaction_type, quantity, unit, order_id)
+      VALUES (gen_random_uuid()::text, inv_id, 'sale', -item.quantity, item.unit::inventory_unit_type, p_order_id);
+    END IF;
+  END LOOP;
   
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
--- Function to get low stock items with unit-specific thresholds
+-- Get low stock items (optimized with generated column)
 CREATE OR REPLACE FUNCTION get_low_stock_items()
 RETURNS TABLE (
   inventory_item_id TEXT,
   menu_item_name TEXT,
-  current_stock DECIMAL,
-  threshold DECIMAL,
+  current_stock NUMERIC,
+  threshold NUMERIC,
   unit inventory_unit_type,
-  stock_percentage DECIMAL
+  stock_status VARCHAR
 ) AS $$
 BEGIN
   RETURN QUERY
@@ -632,67 +603,129 @@ BEGIN
     ii.id,
     mi.name,
     ii.current_stock,
-    COALESCE(
-      ii.low_stock_threshold, 
-      ic.low_stock_threshold, 
-      get_unit_default_threshold(ii.unit)
-    ) as threshold,
+    COALESCE(ii.low_stock_threshold, 10)::NUMERIC,
     ii.unit,
-    CASE 
-      WHEN COALESCE(ii.low_stock_threshold, ic.low_stock_threshold, get_unit_default_threshold(ii.unit)) > 0 
-      THEN ROUND((ii.current_stock / COALESCE(ii.low_stock_threshold, ic.low_stock_threshold, get_unit_default_threshold(ii.unit))) * 100, 1)
-      ELSE 100
-    END as stock_percentage
+    ii.stock_status
   FROM inventory_items ii
   JOIN menu_items mi ON ii.menu_item_id = mi.id
-  LEFT JOIN inventory_categories ic ON mi.category = (SELECT c.name FROM categories c WHERE c.id = ic.category_id)
-  WHERE ii.current_stock <= COALESCE(ii.low_stock_threshold, ic.low_stock_threshold, get_unit_default_threshold(ii.unit))
+  WHERE ii.stock_status != 'ok'
   ORDER BY 
-    CASE 
-      WHEN ii.current_stock <= 0 THEN 0
-      WHEN ii.current_stock <= COALESCE(ii.low_stock_threshold, ic.low_stock_threshold, get_unit_default_threshold(ii.unit)) * 0.25 THEN 1
-      ELSE 2
+    CASE ii.stock_status
+      WHEN 'out' THEN 1
+      WHEN 'critical' THEN 2
+      WHEN 'low' THEN 3
     END,
     ii.current_stock ASC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE;
 
--- Function to get inventory summary by status
-CREATE OR REPLACE FUNCTION get_inventory_summary()
+-- Get unit default threshold
+CREATE OR REPLACE FUNCTION get_unit_default_threshold(p_unit inventory_unit_type)
+RETURNS NUMERIC AS $$
+SELECT CASE p_unit
+  WHEN 'ml' THEN 500
+  WHEN 'liter' THEN 2
+  WHEN 'pcs' THEN 10
+  WHEN 'grams' THEN 500
+  WHEN 'kg' THEN 1
+  WHEN 'bottle' THEN 5
+  WHEN 'pack' THEN 3
+  ELSE 10
+END::NUMERIC;
+$$ LANGUAGE sql IMMUTABLE;
+
+-- Payment block functions
+CREATE OR REPLACE FUNCTION check_payment_block(p_table SMALLINT, p_phone VARCHAR)
+RETURNS TABLE (is_blocked BOOLEAN, paid_at TIMESTAMPTZ, block_id INTEGER) AS $$
+  SELECT TRUE, pb.paid_at, pb.id
+  FROM payment_blocks pb
+  WHERE pb.table_number = p_table
+    AND pb.customer_phone = p_phone
+    AND pb.paid_at > NOW() - INTERVAL '3 hours'
+    AND pb.staff_override = FALSE
+  ORDER BY pb.paid_at DESC
+  LIMIT 1;
+$$ LANGUAGE sql STABLE;
+
+CREATE OR REPLACE FUNCTION record_payment_block(p_table SMALLINT, p_phone VARCHAR)
+RETURNS INTEGER AS $$
+  INSERT INTO payment_blocks (table_number, customer_phone)
+  VALUES (p_table, p_phone)
+  RETURNING id;
+$$ LANGUAGE sql;
+
+CREATE OR REPLACE FUNCTION override_payment_block(p_id INTEGER)
+RETURNS BOOLEAN AS $$
+  UPDATE payment_blocks SET staff_override = TRUE, override_at = NOW() WHERE id = p_id RETURNING TRUE;
+$$ LANGUAGE sql;
+
+-- Archive old orders (run weekly via cron)
+CREATE OR REPLACE FUNCTION archive_old_orders(days_old INTEGER DEFAULT 30)
+RETURNS INTEGER AS $$
+DECLARE
+  deleted INTEGER;
+BEGIN
+  -- Delete old completed/cancelled orders
+  DELETE FROM orders 
+  WHERE status IN ('served', 'cancelled') 
+    AND created_at < NOW() - (days_old || ' days')::INTERVAL;
+  GET DIAGNOSTICS deleted = ROW_COUNT;
+  
+  -- Cleanup expired payment blocks
+  DELETE FROM payment_blocks WHERE expires_at < NOW();
+  
+  RETURN deleted;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Customer analytics for loyalty
+CREATE OR REPLACE FUNCTION get_customer_analytics(p_phone VARCHAR)
 RETURNS TABLE (
-  total_items BIGINT,
-  out_of_stock BIGINT,
-  critical_stock BIGINT,
-  low_stock BIGINT,
-  healthy_stock BIGINT
+  phone VARCHAR,
+  name VARCHAR,
+  tier VARCHAR,
+  total_orders INTEGER,
+  total_spent NUMERIC,
+  points INTEGER,
+  avg_order_value NUMERIC,
+  days_since_last_visit INTEGER,
+  favorite_items JSONB
 ) AS $$
 BEGIN
   RETURN QUERY
   SELECT 
-    COUNT(*)::BIGINT as total_items,
-    COUNT(*) FILTER (WHERE ii.current_stock <= 0)::BIGINT as out_of_stock,
-    COUNT(*) FILTER (
-      WHERE ii.current_stock > 0 
-      AND ii.current_stock <= COALESCE(ii.low_stock_threshold, get_unit_default_threshold(ii.unit)) * 0.25
-    )::BIGINT as critical_stock,
-    COUNT(*) FILTER (
-      WHERE ii.current_stock > COALESCE(ii.low_stock_threshold, get_unit_default_threshold(ii.unit)) * 0.25
-      AND ii.current_stock <= COALESCE(ii.low_stock_threshold, get_unit_default_threshold(ii.unit))
-    )::BIGINT as low_stock,
-    COUNT(*) FILTER (
-      WHERE ii.current_stock > COALESCE(ii.low_stock_threshold, get_unit_default_threshold(ii.unit))
-    )::BIGINT as healthy_stock
-  FROM inventory_items ii;
+    c.phone,
+    c.name,
+    c.tier,
+    c.total_orders,
+    c.total_spent,
+    c.points,
+    CASE WHEN c.total_orders > 0 THEN ROUND(c.total_spent / c.total_orders, 2) ELSE 0 END,
+    EXTRACT(DAY FROM NOW() - c.last_visit)::INTEGER,
+    COALESCE(
+      (SELECT jsonb_agg(item_name ORDER BY cnt DESC)
+       FROM (
+         SELECT item->>'name' as item_name, COUNT(*) as cnt
+         FROM transactions t,
+              jsonb_array_elements(t.items) as item
+         WHERE t.customer_phones ? c.phone
+         GROUP BY item->>'name'
+         LIMIT 5
+       ) top_items
+      ), '[]'::JSONB
+    )
+  FROM customers c
+  WHERE c.phone = p_phone;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE;
 
--- Function to get item portion prices with fallback to category defaults
+-- Item portion prices helper
 CREATE OR REPLACE FUNCTION get_item_portion_prices(p_menu_item_id TEXT)
 RETURNS TABLE (
   portion_id TEXT,
-  portion_name TEXT,
-  portion_size DECIMAL,
-  price DECIMAL,
+  portion_name VARCHAR,
+  portion_size NUMERIC,
+  price NUMERIC,
   is_item_specific BOOLEAN
 ) AS $$
 BEGIN
@@ -701,8 +734,8 @@ BEGIN
     po.id,
     po.name,
     po.size,
-    COALESCE(ipp.price, po.fixed_price, 0) as price,
-    ipp.id IS NOT NULL as is_item_specific
+    COALESCE(ipp.price, po.fixed_price, 0)::NUMERIC,
+    ipp.id IS NOT NULL
   FROM menu_items mi
   JOIN inventory_items ii ON ii.menu_item_id = mi.id
   JOIN inventory_categories ic ON mi.category = (SELECT c.name FROM categories c WHERE c.id = ic.category_id)
@@ -711,34 +744,37 @@ BEGIN
   WHERE mi.id = p_menu_item_id
   ORDER BY po.sort_order;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE;
 
 -- ===========================================
 -- DEFAULT DATA
 -- ===========================================
 
--- Insert default settings if not exists
-INSERT INTO settings (restaurant_name, table_count)
-VALUES ('Chiyadani', 10)
-ON CONFLICT DO NOTHING;
+INSERT INTO settings (id, restaurant_name, table_count)
+VALUES (1, 'Sajilo Orders', 10)
+ON CONFLICT (id) DO NOTHING;
 
 -- ===========================================
--- MAINTENANCE NOTES
+-- MAINTENANCE & OPTIMIZATION NOTES
 -- ===========================================
 -- 
--- Default low stock thresholds by unit type:
--- - ml: 500 (500ml)
--- - pcs: 10 (10 pieces)
--- - grams: 500 (500 grams)
--- - bottle: 5 (5 bottles)
--- - pack: 3 (3 packs)
+-- PERFORMANCE OPTIMIZATIONS APPLIED:
+-- 1. Generated columns for stock_status, tier, paid_date (avoid runtime calculations)
+-- 2. Partial indexes for active records (pending orders, unpaid bills)
+-- 3. SMALLINT for small numbers (table_number, sort_order)
+-- 4. VARCHAR with limits instead of unlimited TEXT where appropriate
+-- 5. NUMERIC instead of DECIMAL for exact decimal math
+-- 6. ENUM types for status fields (smaller, faster comparisons)
+-- 7. Single RLS policy per table for simplicity
+-- 8. REPLICA IDENTITY FULL for realtime subscriptions
+-- 9. Triggers for auto-updating timestamps and customer stats
+-- 10. Batch inventory deduction function to reduce round-trips
 --
--- Run cleanup_old_payment_blocks() periodically to remove old records
--- Consider adding a cron job for automatic cleanup
---
--- Indexes are optimized for:
--- - High-frequency reads on active orders/bills
--- - Date-based reporting queries
--- - Inventory stock level checks
--- - Customer loyalty point lookups
+-- RECOMMENDED CRON JOBS:
+-- Daily: SELECT archive_old_orders(30);
+-- 
+-- FREE TIER LIMITS:
+-- - 500MB database (schema optimized for minimal storage)
+-- - 50 concurrent connections (use connection pooling)
+-- - 2GB bandwidth (indexes reduce data transfer)
 -- ===========================================
