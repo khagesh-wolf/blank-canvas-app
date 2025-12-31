@@ -755,6 +755,34 @@ export const inventoryItemsApi = {
     return (data || []).map(mapInventoryItemFromDb);
   },
   create: async (item: any) => {
+    // First, get the menu item to find its category
+    const { data: menuItem } = await supabase
+      .from('menu_items')
+      .select('category')
+      .eq('id', item.menuItemId)
+      .single();
+    
+    // Get the category ID for this menu item's category
+    const { data: categoryData } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('name', menuItem?.category || '')
+      .single();
+    
+    // Create an inventory_category entry with the same ID as the inventory item
+    // This allows portion_options to reference it via inventory_category_id
+    if (categoryData?.id) {
+      await supabase
+        .from('inventory_categories')
+        .upsert({
+          id: item.id,
+          category_id: categoryData.id,
+          unit_type: item.unit || 'pcs',
+          default_container_size: item.defaultBottleSize || null,
+          low_stock_threshold: item.lowStockThreshold || null,
+        }, { onConflict: 'id' });
+    }
+    
     const { data, error } = await supabase
       .from('inventory_items')
       .insert(mapInventoryItemToDb(item))
@@ -784,6 +812,12 @@ export const inventoryItemsApi = {
     return mapInventoryItemFromDb(data);
   },
   delete: async (id: string) => {
+    // Delete the inventory_category entry first (portions will cascade delete)
+    await supabase
+      .from('inventory_categories')
+      .delete()
+      .eq('id', id);
+    
     const { error } = await supabase
       .from('inventory_items')
       .delete()
@@ -868,12 +902,11 @@ export const portionOptionsApi = {
     return (data || []).map(mapPortionOptionFromDb);
   },
   create: async (item: any) => {
-    // Don't include id for new records - let database auto-generate
-    const { id, ...itemWithoutId } = mapPortionOptionToDb(item);
-    const insertData = item.id ? mapPortionOptionToDb(item) : itemWithoutId;
+    const dbItem = mapPortionOptionToDb(item);
+    // Use upsert to handle potential duplicates gracefully
     const { data, error } = await supabase
       .from('portion_options')
-      .insert(insertData)
+      .upsert(dbItem, { onConflict: 'id' })
       .select()
       .single();
     if (error) throw error;
