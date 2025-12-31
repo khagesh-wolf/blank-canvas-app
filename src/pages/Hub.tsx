@@ -1,23 +1,16 @@
 import { Link } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
-import { Coffee, User, ChefHat, CreditCard, Settings, TrendingUp, Users, ShoppingBag, ArrowRight, Sparkles } from 'lucide-react';
+import { Coffee, User, CreditCard, Settings, TrendingUp, Users, ShoppingBag, ArrowRight, Sparkles } from 'lucide-react';
 import { ServerConfig } from '@/components/ServerConfig';
 import { formatNepalDateTime } from '@/lib/nepalTime';
 
 
 const modules = [
   {
-    path: '/kitchen',
-    title: 'Kitchen Display',
-    description: 'Real-time order management for your cooking staff',
-    icon: ChefHat,
-    gradient: 'from-amber-500 to-orange-600',
-  },
-  {
     path: '/counter',
     title: 'Counter POS',
-    description: 'Streamlined billing and payment processing',
+    description: 'Order management, billing & payment processing',
     icon: CreditCard,
     gradient: 'from-emerald-500 to-teal-600',
   },
@@ -104,7 +97,7 @@ export default function Hub() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-10">
           <StatCard icon={TrendingUp} label="Today's Revenue" value={`रू ${stats.revenue.toLocaleString()}`} />
           <StatCard icon={ShoppingBag} label="Orders Completed" value={stats.orders.toString()} />
-          <StatCard icon={ChefHat} label="Active Orders" value={stats.activeOrders.toString()} highlight={stats.activeOrders > 0} />
+          <StatCard icon={ShoppingBag} label="Active Orders" value={stats.activeOrders.toString()} highlight={stats.activeOrders > 0} />
           <StatCard icon={Users} label="Active Tables" value={stats.activeTables.toString()} />
         </div>
 

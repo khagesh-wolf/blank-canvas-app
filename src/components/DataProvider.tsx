@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
 import { supabase } from '@/lib/supabase';
 import {
@@ -99,63 +99,129 @@ export function DataProvider({ children }: DataProviderProps) {
     }
   };
 
-  // Set up Supabase Realtime subscriptions
+  // Debounce helper to reduce API calls (free tier optimization)
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const debouncedFetch = (key: string, fn: () => Promise<void>, delay = 500) => {
+    if (debounceTimers.current[key]) {
+      clearTimeout(debounceTimers.current[key]);
+    }
+    debounceTimers.current[key] = setTimeout(() => {
+      fn().catch(console.error);
+    }, delay);
+  };
+
+  // Set up Supabase Realtime subscriptions (optimized for free tier)
   useEffect(() => {
     // Initial load
     loadDataFromBackend();
 
-    // Subscribe to realtime updates for orders
-    const ordersChannel = supabase
-      .channel('orders-changes')
+    // CRITICAL TABLES - Real-time sync needed for multi-device restaurant operation
+    // Using a single channel with multiple table subscriptions to reduce connection count
+    const realtimeChannel = supabase
+      .channel('restaurant-sync')
+      // Orders - Counter needs instant updates when customers place orders
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        async () => {
-          console.log('[DataProvider] Orders updated via Realtime');
-          const orders = await ordersApi.getAll().catch(() => []);
-          useStore.getState().setOrders(orders);
+        () => {
+          debouncedFetch('orders', async () => {
+            console.log('[Realtime] Orders synced');
+            const orders = await ordersApi.getAll().catch(() => []);
+            useStore.getState().setOrders(orders);
+          });
         }
       )
-      .subscribe();
-
-    // Subscribe to realtime updates for waiter_calls
-    const waiterCallsChannel = supabase
-      .channel('waiter-calls-changes')
+      // Waiter calls - Counter needs alerts when customers call for service
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'waiter_calls' },
-        async () => {
-          console.log('[DataProvider] Waiter calls updated via Realtime');
-          const waiterCalls = await waiterCallsApi.getAll().catch(() => []);
-          useStore.getState().setWaiterCalls(waiterCalls);
+        () => {
+          debouncedFetch('waiter_calls', async () => {
+            console.log('[Realtime] Waiter calls synced');
+            const waiterCalls = await waiterCallsApi.getAll().catch(() => []);
+            useStore.getState().setWaiterCalls(waiterCalls);
+          });
         }
       )
-      .subscribe();
-
-    // Subscribe to realtime updates for bills
-    const billsChannel = supabase
-      .channel('bills-changes')
+      // Bills - For payment status sync across devices
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bills' },
-        async () => {
-          console.log('[DataProvider] Bills updated via Realtime');
-          const [bills, transactions] = await Promise.all([
-            billsApi.getAll().catch(() => []),
-            transactionsApi.getAll().catch(() => []),
-          ]);
-          const store = useStore.getState();
-          store.setBills(bills);
-          store.setTransactions(transactions);
+        () => {
+          debouncedFetch('bills', async () => {
+            console.log('[Realtime] Bills synced');
+            const [bills, transactions] = await Promise.all([
+              billsApi.getAll().catch(() => []),
+              transactionsApi.getAll().catch(() => []),
+            ]);
+            const store = useStore.getState();
+            store.setBills(bills);
+            store.setTransactions(transactions);
+          });
         }
       )
-      .subscribe();
+      // Inventory - Prevent overselling by syncing stock levels
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'inventory_items' },
+        () => {
+          debouncedFetch('inventory', async () => {
+            console.log('[Realtime] Inventory synced');
+            const [inventoryItems, lowStockItems] = await Promise.all([
+              inventoryItemsApi.getAll().catch(() => []),
+              getLowStockItems().catch(() => []),
+            ]);
+            const store = useStore.getState();
+            store.setInventoryItems(inventoryItems);
+            store.setLowStockItems(lowStockItems);
+          });
+        }
+      )
+      // Menu items - Sync availability and price changes
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'menu_items' },
+        () => {
+          debouncedFetch('menu', async () => {
+            console.log('[Realtime] Menu synced');
+            const menuItems = await menuApi.getAll().catch(() => []);
+            useStore.getState().setMenuItems(menuItems);
+          });
+        }
+      )
+      // Categories - Sync menu structure changes
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        () => {
+          debouncedFetch('categories', async () => {
+            console.log('[Realtime] Categories synced');
+            const categories = await categoriesApi.getAll().catch(() => []);
+            useStore.getState().setCategories(categories);
+          });
+        }
+      )
+      // Settings - Sync restaurant config across devices
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'settings' },
+        () => {
+          debouncedFetch('settings', async () => {
+            console.log('[Realtime] Settings synced');
+            const settings = await settingsApi.get().catch(() => null);
+            if (settings) useStore.getState().setSettings(settings);
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] Subscription status:', status);
+      });
 
-    // Cleanup subscriptions
+    // Cleanup
     return () => {
-      supabase.removeChannel(ordersChannel);
-      supabase.removeChannel(waiterCallsChannel);
-      supabase.removeChannel(billsChannel);
+      // Clear any pending debounce timers
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+      supabase.removeChannel(realtimeChannel);
     };
   }, []);
 
