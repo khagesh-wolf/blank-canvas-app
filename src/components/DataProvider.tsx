@@ -16,6 +16,7 @@ import {
   inventoryItemsApi,
   inventoryTransactionsApi,
   portionOptionsApi,
+  itemPortionPricesApi,
   getLowStockItems,
   checkBackendHealth,
 } from '@/lib/apiClient';
@@ -49,7 +50,7 @@ export function DataProvider({ children }: DataProviderProps) {
       // Fetch all data from Supabase (including inventory)
       const [
         menuItems, orders, bills, customers, staff, settings, expenses, waiterCalls, transactions, categories,
-        inventoryCategories, inventoryItems, inventoryTransactions, portionOptions, lowStockItems
+        inventoryCategories, inventoryItems, inventoryTransactions, portionOptions, itemPortionPrices, lowStockItems
       ] = await Promise.all([
         menuApi.getAll().catch(() => []),
         ordersApi.getAll().catch(() => []),
@@ -65,6 +66,7 @@ export function DataProvider({ children }: DataProviderProps) {
         inventoryItemsApi.getAll().catch(() => []),
         inventoryTransactionsApi.getAll().catch(() => []),
         portionOptionsApi.getAll().catch(() => []),
+        itemPortionPricesApi.getAll().catch(() => []),
         getLowStockItems().catch(() => []),
       ]);
 
@@ -85,6 +87,7 @@ export function DataProvider({ children }: DataProviderProps) {
       store.setInventoryItems(inventoryItems || []);
       store.setInventoryTransactions(inventoryTransactions || []);
       store.setPortionOptions(portionOptions || []);
+      store.setItemPortionPrices(itemPortionPrices || []);
       store.setLowStockItems(lowStockItems || []);
       store.setDataLoaded(true);
 

@@ -494,10 +494,21 @@ CREATE TABLE IF NOT EXISTS portion_options (
   size DECIMAL(10,2) NOT NULL,
   -- Price multiplier (1.0 = base price, 2.0 = double price) - legacy, use fixed_price instead
   price_multiplier DECIMAL(5,2) NOT NULL DEFAULT 1.0,
-  -- Fixed price for this portion (overrides multiplier when set)
+  -- Fixed price for this portion (overrides multiplier when set) - used as default if no item-specific price
   fixed_price DECIMAL(10,2) DEFAULT NULL,
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Item-specific portion prices (overrides category-level portion prices)
+CREATE TABLE IF NOT EXISTS item_portion_prices (
+  id TEXT PRIMARY KEY,
+  menu_item_id TEXT NOT NULL REFERENCES menu_items(id) ON DELETE CASCADE,
+  portion_option_id TEXT NOT NULL REFERENCES portion_options(id) ON DELETE CASCADE,
+  price DECIMAL(10,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(menu_item_id, portion_option_id)
 );
 
 -- Indexes for inventory tables
@@ -508,12 +519,15 @@ CREATE INDEX IF NOT EXISTS idx_inventory_transactions_item ON inventory_transact
 CREATE INDEX IF NOT EXISTS idx_inventory_transactions_type ON inventory_transactions(transaction_type);
 CREATE INDEX IF NOT EXISTS idx_inventory_transactions_created ON inventory_transactions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_portion_options_category ON portion_options(inventory_category_id);
+CREATE INDEX IF NOT EXISTS idx_item_portion_prices_menu_item ON item_portion_prices(menu_item_id);
+CREATE INDEX IF NOT EXISTS idx_item_portion_prices_portion ON item_portion_prices(portion_option_id);
 
 -- RLS for inventory tables
 ALTER TABLE inventory_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE portion_options ENABLE ROW LEVEL SECURITY;
+ALTER TABLE item_portion_prices ENABLE ROW LEVEL SECURITY;
 
 -- Inventory Categories RLS
 CREATE POLICY "Public read inventory_categories" ON inventory_categories FOR SELECT USING (true);
@@ -536,6 +550,12 @@ CREATE POLICY "Public read portion_options" ON portion_options FOR SELECT USING 
 CREATE POLICY "Public insert portion_options" ON portion_options FOR INSERT WITH CHECK (true);
 CREATE POLICY "Public update portion_options" ON portion_options FOR UPDATE USING (true);
 CREATE POLICY "Public delete portion_options" ON portion_options FOR DELETE USING (true);
+
+-- Item Portion Prices RLS
+CREATE POLICY "Public read item_portion_prices" ON item_portion_prices FOR SELECT USING (true);
+CREATE POLICY "Public insert item_portion_prices" ON item_portion_prices FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update item_portion_prices" ON item_portion_prices FOR UPDATE USING (true);
+CREATE POLICY "Public delete item_portion_prices" ON item_portion_prices FOR DELETE USING (true);
 
 -- Add inventory tables to realtime
 DO $$

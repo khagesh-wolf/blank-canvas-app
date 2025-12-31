@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { MenuItem, PortionOption } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
 interface PortionSelectorProps {
@@ -13,15 +11,27 @@ interface PortionSelectorProps {
 }
 
 export function PortionSelector({ item, open, onClose, onSelect }: PortionSelectorProps) {
-  const { getPortionsByCategory } = useStore();
+  const { getPortionsByCategory, getItemPortionPrice, inventoryCategories, categories } = useStore();
   const portions = getPortionsByCategory(item.category);
   
-  // Get price for portion - use fixed price if set, otherwise calculate from multiplier
+  // Get the inventory category for unit display
+  const category = categories.find(c => c.name === item.category);
+  const invCat = inventoryCategories.find(ic => ic.categoryId === category?.id);
+  
+  // Get price for portion - priority: item-specific > category default > multiplier calculation
   const getPortionPrice = (portion: PortionOption): number => {
+    // First, check for item-specific price
+    const itemPrice = getItemPortionPrice(item.id, portion.id);
+    if (itemPrice != null) {
+      return itemPrice;
+    }
+    
+    // Fallback to category-level fixed price
     if (portion.fixedPrice != null) {
       return portion.fixedPrice;
     }
-    // Fallback to multiplier-based calculation
+    
+    // Last resort: multiplier-based calculation
     const baseMultiplier = Math.min(...portions.map(p => p.priceMultiplier));
     const baseUnitPrice = item.price / baseMultiplier;
     return Math.round(baseUnitPrice * portion.priceMultiplier);
@@ -58,7 +68,9 @@ export function PortionSelector({ item, open, onClose, onSelect }: PortionSelect
                 >
                   <div className="text-left">
                     <div className="font-semibold text-foreground">{portion.name}</div>
-                    <div className="text-xs text-muted-foreground">{portion.size} {item.category === 'Drinks' ? 'ml' : 'units'}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {portion.size} {invCat?.unitType || 'units'}
+                    </div>
                   </div>
                   <div className="text-lg font-bold text-primary">
                     Rs {price}

@@ -18,13 +18,14 @@ import {
   InventoryItem,
   InventoryTransaction,
   PortionOption,
+  ItemPortionPrice,
   LowStockItem,
   InventoryUnitType,
 } from '@/types';
 import { getNepalTimestamp, isToday } from '@/lib/nepalTime';
 import { 
   billsApi, customersApi, ordersApi, menuApi, settingsApi, expensesApi, waiterCallsApi, staffApi, transactionsApi, categoriesApi,
-  inventoryCategoriesApi, inventoryItemsApi, inventoryTransactionsApi, portionOptionsApi, getLowStockItems
+  inventoryCategoriesApi, inventoryItemsApi, inventoryTransactionsApi, portionOptionsApi, itemPortionPricesApi, getLowStockItems
 } from '@/lib/apiClient';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -194,6 +195,12 @@ interface StoreState extends AuthState {
   updatePortionOption: (id: string, option: Partial<PortionOption>) => void;
   deletePortionOption: (id: string) => void;
   getPortionsByCategory: (categoryName: string) => PortionOption[];
+  
+  // Item-specific portion prices
+  itemPortionPrices: ItemPortionPrice[];
+  setItemPortionPrices: (prices: ItemPortionPrice[]) => void;
+  setItemPortionPrice: (menuItemId: string, portionOptionId: string, price: number) => void;
+  getItemPortionPrice: (menuItemId: string, portionOptionId: string) => number | undefined;
   
   lowStockItems: LowStockItem[];
   setLowStockItems: (items: LowStockItem[]) => void;
@@ -996,6 +1003,46 @@ export const useStore = create<StoreState>()((set, get) => ({
     return get().portionOptions.filter(p => p.inventoryCategoryId === invCat.id);
   },
   
+  // Item Portion Prices
+  itemPortionPrices: [],
+  setItemPortionPrices: (prices) => set({ itemPortionPrices: prices }),
+  
+  setItemPortionPrice: (menuItemId, portionOptionId, price) => {
+    const existing = get().itemPortionPrices.find(
+      p => p.menuItemId === menuItemId && p.portionOptionId === portionOptionId
+    );
+    
+    if (existing) {
+      // Update existing
+      const updated = { ...existing, price, updatedAt: getNepalTimestamp() };
+      set((state) => ({
+        itemPortionPrices: state.itemPortionPrices.map(p => 
+          p.id === existing.id ? updated : p
+        )
+      }));
+      syncToBackend(() => itemPortionPricesApi.upsert(updated));
+    } else {
+      // Create new
+      const newPrice: ItemPortionPrice = {
+        id: generateId(),
+        menuItemId,
+        portionOptionId,
+        price,
+        createdAt: getNepalTimestamp(),
+        updatedAt: getNepalTimestamp()
+      };
+      set((state) => ({ itemPortionPrices: [...state.itemPortionPrices, newPrice] }));
+      syncToBackend(() => itemPortionPricesApi.upsert(newPrice));
+    }
+  },
+  
+  getItemPortionPrice: (menuItemId, portionOptionId) => {
+    const itemPrice = get().itemPortionPrices.find(
+      p => p.menuItemId === menuItemId && p.portionOptionId === portionOptionId
+    );
+    return itemPrice?.price;
+  },
+
   // Low Stock Items
   lowStockItems: [],
   setLowStockItems: (items) => set({ lowStockItems: items }),

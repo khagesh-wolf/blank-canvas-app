@@ -893,6 +893,60 @@ export const portionOptionsApi = {
   },
 };
 
+// Item Portion Prices (per-item pricing)
+const mapItemPortionPriceFromDb = (row: any) => ({
+  id: row.id,
+  menuItemId: row.menu_item_id,
+  portionOptionId: row.portion_option_id,
+  price: Number(row.price),
+  createdAt: row.created_at,
+  updatedAt: row.updated_at ?? row.created_at,
+});
+
+const mapItemPortionPriceToDb = (item: any) => ({
+  id: item.id,
+  menu_item_id: item.menuItemId,
+  portion_option_id: item.portionOptionId,
+  price: item.price,
+  updated_at: new Date().toISOString(),
+});
+
+export const itemPortionPricesApi = {
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from('item_portion_prices')
+      .select('*');
+    if (error) throw error;
+    return (data || []).map(mapItemPortionPriceFromDb);
+  },
+  getByMenuItem: async (menuItemId: string) => {
+    const { data, error } = await supabase
+      .from('item_portion_prices')
+      .select('*')
+      .eq('menu_item_id', menuItemId);
+    if (error) throw error;
+    return (data || []).map(mapItemPortionPriceFromDb);
+  },
+  upsert: async (item: any) => {
+    const { data, error } = await supabase
+      .from('item_portion_prices')
+      .upsert(mapItemPortionPriceToDb(item), { 
+        onConflict: 'menu_item_id,portion_option_id' 
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return mapItemPortionPriceFromDb(data);
+  },
+  delete: async (id: string) => {
+    const { error } = await supabase
+      .from('item_portion_prices')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+};
+
 // Low Stock Items
 export const getLowStockItems = async () => {
   const { data, error } = await supabase.rpc('get_low_stock_items');

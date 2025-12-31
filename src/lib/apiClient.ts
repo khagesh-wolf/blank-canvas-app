@@ -17,6 +17,7 @@ export {
   inventoryItemsApi,
   inventoryTransactionsApi,
   portionOptionsApi,
+  itemPortionPricesApi,
   getLowStockItems,
   checkBackendHealth,
   getApiBaseUrl,

@@ -199,9 +199,18 @@ export interface PortionOption {
   name: string;
   size: number;
   priceMultiplier: number;
-  fixedPrice?: number; // Fixed price for this portion (overrides multiplier if set)
+  fixedPrice?: number; // Default fixed price for this portion (fallback if no item-specific price)
   sortOrder: number;
   createdAt: string;
+}
+
+export interface ItemPortionPrice {
+  id: string;
+  menuItemId: string;
+  portionOptionId: string;
+  price: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LowStockItem {
