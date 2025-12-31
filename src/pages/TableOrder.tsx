@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
-import { OrderItem } from '@/types';
+import { OrderItem, MenuItem, PortionOption } from '@/types';
 import { 
   generateSessionToken, 
   getClosedSessions, 
   addClosedSession 
 } from '@/lib/sessionManager';
 import { checkPaymentBlock, overridePaymentBlock, PaymentBlockCheck } from '@/lib/paymentBlockApi';
+import { PortionSelector } from '@/components/PortionSelector';
 import { Input } from '@/components/ui/input';
 import { 
   Plus, 
@@ -102,7 +103,7 @@ function StaffApprovalInput({ onApprove }: { onApprove: () => void }) {
 export default function TableOrder() {
   const { tableNumber } = useParams();
   const navigate = useNavigate();
-  const { menuItems, categories, settings, addOrder, getCustomerPoints, updateOrderStatus, callWaiter, waiterCalls, bills } = useStore();
+  const { menuItems, categories, settings, addOrder, getCustomerPoints, updateOrderStatus, callWaiter, waiterCalls, bills, getPortionsByCategory, getInventoryByMenuItemId } = useStore();
   
   const [phone, setPhone] = useState('');
   const [isPhoneEntered, setIsPhoneEntered] = useState(false);
@@ -119,6 +120,7 @@ export default function TableOrder() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
+  const [portionSelectorItem, setPortionSelectorItem] = useState<MenuItem | null>(null);
   const table = parseInt(tableNumber || '0');
   
   // Favorites hook
@@ -525,25 +527,49 @@ export default function TableOrder() {
   // Get customer points
   const customerPoints = phone ? getCustomerPoints(phone) : 0;
 
-  const addToCart = (item: typeof menuItems[0]) => {
+  const addToCart = (item: typeof menuItems[0], portion?: PortionOption, customPrice?: number) => {
     hapticAddToCart();
     setLastAddedItemId(item.id);
     setTimeout(() => setLastAddedItemId(null), 400);
     
-    const existing = cart.find(c => c.menuItemId === item.id);
+    // Check if item has portions (inventory tracked with portions)
+    const portions = getPortionsByCategory(item.category);
+    if (portions.length > 0 && !portion) {
+      // Show portion selector
+      setPortionSelectorItem(item);
+      return;
+    }
+    
+    // Create unique ID for cart item (includes portion if applicable)
+    const cartItemId = portion 
+      ? `${item.id}-${portion.id}` 
+      : item.id;
+    
+    const price = customPrice ?? item.price;
+    const itemName = portion ? `${item.name} (${portion.name})` : item.name;
+    
+    const existing = cart.find(c => c.menuItemId === cartItemId);
     if (existing) {
       setCart(cart.map(c =>
-        c.menuItemId === item.id ? { ...c, qty: c.qty + 1 } : c
+        c.menuItemId === cartItemId ? { ...c, qty: c.qty + 1 } : c
       ));
     } else {
       setCart([...cart, {
         id: Math.random().toString(36).substring(2, 9),
-        menuItemId: item.id,
-        name: item.name,
+        menuItemId: cartItemId,
+        name: itemName,
         qty: 1,
-        price: item.price,
+        price: price,
+        portionSize: portion?.size,
+        portionName: portion?.name,
       }]);
     }
+  };
+
+  // Handle portion selection
+  const handlePortionSelect = (item: MenuItem, portion: PortionOption, price: number) => {
+    addToCart(item, portion, price);
+    setPortionSelectorItem(null);
   };
 
   const updateQty = (menuItemId: string, delta: number) => {
@@ -1534,6 +1560,16 @@ export default function TableOrder() {
         <div 
           className="fixed inset-0 bg-black/20 z-[1400]"
           onClick={() => setFabOpen(false)}
+        />
+      )}
+
+      {/* Portion Selector Modal */}
+      {portionSelectorItem && (
+        <PortionSelector
+          item={portionSelectorItem}
+          open={!!portionSelectorItem}
+          onClose={() => setPortionSelectorItem(null)}
+          onSelect={handlePortionSelect}
         />
       )}
 

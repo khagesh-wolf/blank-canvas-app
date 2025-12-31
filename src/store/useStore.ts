@@ -414,14 +414,32 @@ export const useStore = create<StoreState>()((set, get) => ({
     return newOrder;
   },
 
-  updateOrderStatus: (id, status) => set((state) => {
+  updateOrderStatus: (id, status) => {
+    const state = get();
+    const order = state.orders.find(o => o.id === id);
+    
+    // When order is accepted, deduct inventory for tracked items
+    if (status === 'accepted' && order) {
+      order.items.forEach(item => {
+        if (item.menuItemId) {
+          const invItem = state.inventoryItems.find(i => i.menuItemId === item.menuItemId);
+          if (invItem) {
+            // Calculate quantity to deduct based on portion size
+            // If item has portionSize, use that; otherwise use qty for unit-based items
+            const deductQty = item.portionSize ? (item.portionSize * item.qty) : item.qty;
+            get().deductStock(item.menuItemId, deductQty, invItem.unit, id);
+          }
+        }
+      });
+    }
+    
     syncToBackend(() => ordersApi.updateStatus(id, status));
-    return {
+    set({
       orders: state.orders.map(o =>
         o.id === id ? { ...o, status, updatedAt: getNepalTimestamp() } : o
       )
-    };
-  }),
+    });
+  },
 
   updateOrderItemStatus: (orderId, itemId, status, completedQty) => set((state) => {
     const order = state.orders.find(o => o.id === orderId);

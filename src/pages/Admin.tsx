@@ -39,6 +39,7 @@ import {
 } from '@/lib/validation';
 import { uploadToR2 } from '@/lib/r2Client';
 import { OptimizedImage } from '@/components/ui/OptimizedImage';
+import { InventoryManager } from '@/components/InventoryManager';
 
 const COLORS = ['#06C167', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -634,6 +635,7 @@ export default function Admin() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+    { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'history', label: 'History', icon: History },
     { id: 'staff', label: 'Staff', icon: UserCog },
@@ -1586,7 +1588,17 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Settings */}
+        {/* Inventory */}
+        {tab === 'inventory' && (
+          <div className="max-w-6xl">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <Package className="w-6 h-6 text-primary" />
+              Inventory Management
+            </h2>
+            <InventoryManager />
+          </div>
+        )}
+
         {tab === 'settings' && (
           <div className="max-w-6xl">
             <h2 className="text-2xl font-bold mb-6">Settings</h2>

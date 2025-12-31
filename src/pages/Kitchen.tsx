@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { formatNepalTime, formatNepalDateTime } from '@/lib/nepalTime';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { printKOTFromOrder, showKOTNotification } from '@/lib/kotPrinter';
+import { LowStockAlert } from '@/components/LowStockAlert';
 
 const statusFlow: OrderStatus[] = ['pending', 'accepted', 'preparing', 'ready'];
 
@@ -319,6 +320,9 @@ export default function Kitchen() {
       </header>
 
       <div className={`${isFullscreen ? 'p-3' : 'p-4 sm:p-6'}`}>
+        {/* Low Stock Alert */}
+        {!isFullscreen && <LowStockAlert />}
+
         {/* View Mode & Filter Tabs - Larger in fullscreen */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4 sm:mb-6">
           {/* View Mode Selector - Hidden in fullscreen (always shows orders) */}
