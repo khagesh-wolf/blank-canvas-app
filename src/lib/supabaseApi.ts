@@ -868,9 +868,12 @@ export const portionOptionsApi = {
     return (data || []).map(mapPortionOptionFromDb);
   },
   create: async (item: any) => {
+    // Don't include id for new records - let database auto-generate
+    const { id, ...itemWithoutId } = mapPortionOptionToDb(item);
+    const insertData = item.id ? mapPortionOptionToDb(item) : itemWithoutId;
     const { data, error } = await supabase
       .from('portion_options')
-      .insert(mapPortionOptionToDb(item))
+      .insert(insertData)
       .select()
       .single();
     if (error) throw error;
