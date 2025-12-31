@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Package, AlertTriangle, TrendingDown, Settings2, Trash2, DollarSign } from 'lucide-react';
+import { Plus, Package, AlertTriangle, TrendingDown, Settings2, Trash2, DollarSign, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { InventoryUnitType } from '@/types';
 import { CategoryPriceEditor } from './PortionPriceEditor';
@@ -61,6 +61,10 @@ export function InventoryManager() {
   const [bottleCount, setBottleCount] = useState('');
   const [bottleSize, setBottleSize] = useState('750');
   const [customBottleSize, setCustomBottleSize] = useState('');
+  
+  // Edit bottle size modal
+  const [editBottleSizeItemId, setEditBottleSizeItemId] = useState<string | null>(null);
+  const [editBottleSizeValue, setEditBottleSizeValue] = useState('');
 
   // Categories with inventory tracking
   const trackedCategories = categories.filter(c => 
@@ -301,11 +305,31 @@ export function InventoryManager() {
                       
                       return (
                         <div key={item.id} className="flex justify-between items-center py-2 border-b last:border-0">
-                          <span>{item.name}</span>
-                          <div className="flex items-center gap-4">
+                          <div>
+                            <span>{item.name}</span>
+                            {invItem.unit === 'ml' && invItem.defaultBottleSize && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                (Default: {invItem.defaultBottleSize}ml)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
                             <span className={`font-mono ${invItem.currentStock <= (invItem.lowStockThreshold || 5) ? 'text-warning' : ''}`}>
                               {invItem.currentStock} {invItem.unit}
                             </span>
+                            {invItem.unit === 'ml' && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditBottleSizeItemId(item.id);
+                                  setEditBottleSizeValue(invItem.defaultBottleSize?.toString() || '750');
+                                }}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       );
@@ -522,6 +546,61 @@ export function InventoryManager() {
           onClose={() => setPriceEditorCategoryId(null)}
         />
       )}
+
+      {/* Edit Bottle Size Modal */}
+      <Dialog open={!!editBottleSizeItemId} onOpenChange={(open) => !open && setEditBottleSizeItemId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Default Bottle Size</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Set the default bottle size for: <strong>{menuItems.find(m => m.id === editBottleSizeItemId)?.name}</strong>
+            </p>
+            <div>
+              <label className="text-sm font-medium">Default Bottle Size (ml)</label>
+              <Select value={editBottleSizeValue} onValueChange={setEditBottleSizeValue}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DEFAULT_BOTTLE_SIZES.map(size => (
+                    <SelectItem key={size} value={size.toString()}>{size}ml</SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editBottleSizeValue === 'custom' && (
+              <div>
+                <label className="text-sm font-medium">Custom Size (ml)</label>
+                <Input
+                  type="number"
+                  value={editBottleSizeValue}
+                  onChange={e => setEditBottleSizeValue(e.target.value)}
+                  placeholder="Enter size in ml"
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBottleSizeItemId(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (editBottleSizeItemId) {
+                const invItem = inventoryItems.find(ii => ii.menuItemId === editBottleSizeItemId);
+                if (invItem) {
+                  const size = parseFloat(editBottleSizeValue);
+                  if (size > 0) {
+                    updateInventoryItem(invItem.id, { defaultBottleSize: size });
+                    toast.success('Default bottle size updated');
+                  }
+                }
+              }
+              setEditBottleSizeItemId(null);
+            }}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
