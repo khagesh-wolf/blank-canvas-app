@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Package, AlertTriangle, Settings2, Trash2, DollarSign, Pencil } from 'lucide-react';
+import { Plus, Package, AlertTriangle, Settings2, Trash2, DollarSign, Pencil, X, Layers } from 'lucide-react';
 import { toast } from 'sonner';
-import { InventoryUnitType, MenuItem } from '@/types';
+import { InventoryUnitType, MenuItem, InventoryItem } from '@/types';
 import { PortionPriceEditor } from './PortionPriceEditor';
 
 const UNIT_OPTIONS: { value: InventoryUnitType; label: string }[] = [
@@ -67,6 +67,12 @@ export function InventoryManager() {
   // Edit bottle size modal
   const [editBottleSizeItemId, setEditBottleSizeItemId] = useState<string | null>(null);
   const [editBottleSizeValue, setEditBottleSizeValue] = useState('');
+
+  // Manage portions modal
+  const [portionEditorItem, setPortionEditorItem] = useState<{ menuItem: MenuItem; invItem: InventoryItem } | null>(null);
+  const [newPortionName, setNewPortionName] = useState('');
+  const [newPortionSize, setNewPortionSize] = useState('');
+  const [newPortionPrice, setNewPortionPrice] = useState('');
 
   // Menu items with inventory tracking
   const inventoryMenuItems = menuItems.filter(m => 
@@ -397,9 +403,19 @@ export function InventoryManager() {
                           <Button 
                             variant="outline" 
                             size="sm"
+                            onClick={() => {
+                              const inv = inventoryItems.find(ii => ii.menuItemId === item.id);
+                              if (inv) setPortionEditorItem({ menuItem: item, invItem: inv });
+                            }}
+                          >
+                            <Layers className="w-4 h-4 mr-1" /> Portions
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
                             onClick={() => setPriceEditorItem(item)}
                           >
-                            <DollarSign className="w-4 h-4 mr-1" /> Set Prices
+                            <DollarSign className="w-4 h-4 mr-1" /> Prices
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
@@ -624,6 +640,110 @@ export function InventoryManager() {
             }}>
               Save
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Portions Modal */}
+      <Dialog open={!!portionEditorItem} onOpenChange={(open) => !open && setPortionEditorItem(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Manage Portions: {portionEditorItem?.menuItem.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Add or remove portion sizes for this item. Set prices in the Prices editor.
+            </p>
+            
+            {/* Existing portions */}
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {portionEditorItem && getPortionsByItem(portionEditorItem.menuItem.id)
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map(portion => (
+                  <div key={portion.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div>
+                      <div className="font-medium">{portion.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {portion.size} {portionEditorItem.invItem.unit}
+                        {portion.fixedPrice ? ` • Rs ${portion.fixedPrice}` : ' • No price set'}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        if (confirm(`Delete portion "${portion.name}"?`)) {
+                          deletePortionOption(portion.id);
+                          toast.success('Portion deleted');
+                        }
+                      }}
+                    >
+                      <X className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+            </div>
+
+            {/* Add new portion */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3">Add Custom Portion</h4>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">Name</label>
+                  <Input
+                    value={newPortionName}
+                    onChange={e => setNewPortionName(e.target.value)}
+                    placeholder="e.g., 120ml"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Size ({portionEditorItem?.invItem.unit})</label>
+                  <Input
+                    type="number"
+                    value={newPortionSize}
+                    onChange={e => setNewPortionSize(e.target.value)}
+                    placeholder="e.g., 120"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Price (Rs)</label>
+                  <Input
+                    type="number"
+                    value={newPortionPrice}
+                    onChange={e => setNewPortionPrice(e.target.value)}
+                    placeholder="e.g., 300"
+                  />
+                </div>
+              </div>
+              <Button
+                className="mt-3 w-full"
+                onClick={() => {
+                  if (!portionEditorItem || !newPortionName || !newPortionSize) {
+                    toast.error('Enter name and size');
+                    return;
+                  }
+                  const existingPortions = getPortionsByItem(portionEditorItem.menuItem.id);
+                  addPortionOption({
+                    inventoryItemId: portionEditorItem.invItem.id,
+                    name: newPortionName,
+                    size: parseFloat(newPortionSize),
+                    priceMultiplier: 1,
+                    fixedPrice: newPortionPrice ? parseFloat(newPortionPrice) : undefined,
+                    sortOrder: existingPortions.length,
+                  });
+                  toast.success('Portion added');
+                  setNewPortionName('');
+                  setNewPortionSize('');
+                  setNewPortionPrice('');
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" /> Add Portion
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPortionEditorItem(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

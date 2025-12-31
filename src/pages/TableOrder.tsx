@@ -533,8 +533,9 @@ export default function TableOrder() {
     setTimeout(() => setLastAddedItemId(null), 400);
     
     // Check if item has portions (inventory tracked with portions)
-    const portions = getPortionsByCategory(item.category);
-    if (portions.length > 0 && !portion) {
+    const portions = getPortionsByItem(item.id);
+    const portionsWithPrices = portions.filter(p => p.fixedPrice != null);
+    if (portionsWithPrices.length > 0 && !portion) {
       // Show portion selector
       setPortionSelectorItem(item);
       return;
