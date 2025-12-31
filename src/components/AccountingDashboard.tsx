@@ -386,8 +386,8 @@ export function AccountingDashboard({ currentUser }: AccountingDashboardProps) {
         </div>
         <div className="bg-card p-4 rounded-xl border border-border">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-accent/10 rounded-lg">
-              <DollarSign className="w-4 h-4 text-accent" />
+            <div className="p-2 bg-purple-500/10 rounded-lg">
+              <DollarSign className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
           <p className="text-2xl font-bold">रू {summary.digitalRevenue.toLocaleString()}</p>
