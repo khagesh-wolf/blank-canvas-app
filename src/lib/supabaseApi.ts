@@ -730,7 +730,7 @@ const mapInventoryItemFromDb = (row: any) => ({
   id: row.id,
   menuItemId: row.menu_item_id,
   currentStock: Number(row.current_stock ?? 0),
-  defaultBottleSize: row.default_bottle_size ? Number(row.default_bottle_size) : undefined,
+  defaultBottleSize: row.container_size ? Number(row.container_size) : undefined,
   unit: row.unit ?? 'pcs',
   lowStockThreshold: row.low_stock_threshold ? Number(row.low_stock_threshold) : undefined,
   createdAt: row.created_at,
@@ -741,7 +741,7 @@ const mapInventoryItemToDb = (item: any) => ({
   id: item.id,
   menu_item_id: item.menuItemId,
   current_stock: item.currentStock ?? 0,
-  default_bottle_size: item.defaultBottleSize ?? null,
+  container_size: item.defaultBottleSize ?? null,
   unit: item.unit ?? 'pcs',
   low_stock_threshold: item.lowStockThreshold ?? null,
 });
@@ -839,7 +839,7 @@ export const inventoryTransactionsApi = {
 // Portion Options
 const mapPortionOptionFromDb = (row: any) => ({
   id: row.id,
-  inventoryItemId: row.inventory_item_id,
+  inventoryItemId: row.inventory_category_id,
   name: row.name,
   size: Number(row.size),
   priceMultiplier: Number(row.price_multiplier ?? 1),
@@ -850,7 +850,7 @@ const mapPortionOptionFromDb = (row: any) => ({
 
 const mapPortionOptionToDb = (item: any) => ({
   id: item.id,
-  inventory_item_id: item.inventoryItemId,
+  inventory_category_id: item.inventoryItemId,
   name: item.name,
   size: item.size,
   price_multiplier: item.priceMultiplier ?? 1,
