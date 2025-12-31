@@ -12,16 +12,18 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- DROP EXISTING OBJECTS (Clean Slate)
 -- ===========================================
 
--- Drop functions first (depend on tables)
-DROP FUNCTION IF EXISTS get_low_stock_items() CASCADE;
-DROP FUNCTION IF EXISTS deduct_inventory(TEXT, DECIMAL, inventory_unit_type, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS get_unit_default_threshold(inventory_unit_type) CASCADE;
-DROP FUNCTION IF EXISTS cleanup_old_payment_blocks() CASCADE;
-DROP FUNCTION IF EXISTS override_payment_block(INTEGER) CASCADE;
-DROP FUNCTION IF EXISTS record_payment_block(INTEGER, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS check_payment_block(INTEGER, TEXT) CASCADE;
+-- Drop all functions first
+DROP FUNCTION IF EXISTS get_low_stock_items CASCADE;
+DROP FUNCTION IF EXISTS get_inventory_summary CASCADE;
+DROP FUNCTION IF EXISTS get_item_portion_prices CASCADE;
+DROP FUNCTION IF EXISTS deduct_inventory CASCADE;
+DROP FUNCTION IF EXISTS get_unit_default_threshold CASCADE;
+DROP FUNCTION IF EXISTS cleanup_old_payment_blocks CASCADE;
+DROP FUNCTION IF EXISTS override_payment_block CASCADE;
+DROP FUNCTION IF EXISTS record_payment_block CASCADE;
+DROP FUNCTION IF EXISTS check_payment_block CASCADE;
 
--- Drop types
+-- Drop type (CASCADE will drop dependent objects)
 DROP TYPE IF EXISTS inventory_unit_type CASCADE;
 
 -- Drop tables in dependency order
@@ -300,7 +302,6 @@ CREATE INDEX idx_bills_table ON bills(table_number);
 CREATE INDEX idx_bills_paid ON bills(paid_at DESC) WHERE paid_at IS NOT NULL;
 CREATE INDEX idx_transactions_paid ON transactions(paid_at DESC);
 CREATE INDEX idx_transactions_table ON transactions(table_number);
-CREATE INDEX idx_transactions_date ON transactions(DATE(paid_at));
 CREATE INDEX idx_customers_phone ON customers(phone);
 CREATE INDEX idx_customers_last_visit ON customers(last_visit DESC);
 CREATE INDEX idx_customers_points ON customers(points) WHERE points > 0;
@@ -308,7 +309,6 @@ CREATE INDEX idx_staff_username ON staff(username);
 CREATE INDEX idx_staff_role ON staff(role);
 CREATE INDEX idx_expenses_created ON expenses(created_at DESC);
 CREATE INDEX idx_expenses_category ON expenses(category);
-CREATE INDEX idx_expenses_date ON expenses(DATE(created_at));
 CREATE INDEX idx_waiter_calls_status ON waiter_calls(status);
 CREATE INDEX idx_waiter_calls_status_pending ON waiter_calls(status) WHERE status = 'pending';
 CREATE INDEX idx_waiter_calls_table ON waiter_calls(table_number);
