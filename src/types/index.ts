@@ -23,6 +23,8 @@ export interface OrderItem {
   price: number;
   status?: OrderItemStatus; // For kitchen item-level tracking
   completedQty?: number; // How many of this item are completed
+  portionSize?: number; // Size of portion (e.g., 30 for 30ml) - for inventory tracking
+  portionName?: string; // Name of portion (e.g., "30ml (Peg)")
 }
 
 export type OrderItemStatus = 'pending' | 'preparing' | 'ready';

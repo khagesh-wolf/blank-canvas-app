@@ -37,6 +37,7 @@ import { TableMap } from '@/components/ui/TableMap';
 import { CashRegister } from '@/components/CashRegister';
 import { closeTableSession } from '@/lib/sessionManager';
 import { recordPaymentBlocksForPhones } from '@/lib/paymentBlockApi';
+import { LowStockAlert } from '@/components/LowStockAlert';
 
 // Order age thresholds (in seconds) for timer coloring
 const AGE_WARNING = 300; // 5 minutes - yellow
@@ -1070,6 +1071,9 @@ export default function Counter() {
 
         {/* Tab Content */}
         <div className="flex-1 overflow-y-auto p-5">
+          {/* Low Stock Alert */}
+          <LowStockAlert />
+          
           {/* Active Bills Tab */}
           {activeTab === 'active' && (
             <div className="flex flex-wrap gap-5">
