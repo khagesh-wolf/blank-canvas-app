@@ -144,6 +144,10 @@ export function DataProvider({ children }: DataProviderProps) {
     const reconnectTimerRef = { current: null as ReturnType<typeof setTimeout> | null };
     const hasShownRealtimeToastRef = { current: false };
 
+    // Fallback polling when Realtime is unavailable (e.g. WebSocket blocked or publication not enabled)
+    const ordersPollTimerRef = { current: null as ReturnType<typeof setInterval> | null };
+    const hasShownPollingToastRef = { current: false };
+
     const clearReconnectTimer = () => {
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
@@ -151,8 +155,39 @@ export function DataProvider({ children }: DataProviderProps) {
       }
     };
 
+    const stopOrdersPolling = () => {
+      if (ordersPollTimerRef.current) {
+        clearInterval(ordersPollTimerRef.current);
+        ordersPollTimerRef.current = null;
+      }
+      hasShownPollingToastRef.current = false;
+    };
+
+    const startOrdersPolling = () => {
+      if (destroyed || ordersPollTimerRef.current) return;
+
+      if (!hasShownPollingToastRef.current) {
+        hasShownPollingToastRef.current = true;
+        toast.info('Realtime unavailable — using auto-refresh for orders.', {
+          description: 'New customer orders may take a few seconds to appear.',
+        });
+      }
+
+      // Keep this conservative to avoid hammering the free tier.
+      ordersPollTimerRef.current = setInterval(() => {
+        debouncedFetch('orders_poll', async () => {
+          const orders = await ordersApi.getAll().catch(() => []);
+          useStore.getState().setOrders(orders);
+        }, 250);
+      }, 4000);
+    };
+
+
     const scheduleReconnect = (status: RealtimeStatus) => {
       if (destroyed) return;
+
+      // When realtime is down, ensure counter still gets new customer orders.
+      startOrdersPolling();
 
       clearReconnectTimer();
 
@@ -317,11 +352,12 @@ export function DataProvider({ children }: DataProviderProps) {
         .subscribe((status) => {
           console.log('[Realtime] Subscription status:', status);
 
-          if (status === 'SUBSCRIBED') {
-            reconnectAttemptRef.current = 0;
-            hasShownRealtimeToastRef.current = false;
-            return;
-          }
+           if (status === 'SUBSCRIBED') {
+             reconnectAttemptRef.current = 0;
+             hasShownRealtimeToastRef.current = false;
+             stopOrdersPolling();
+             return;
+           }
 
           // Reconnect on known failure states
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -336,6 +372,7 @@ export function DataProvider({ children }: DataProviderProps) {
     return () => {
       destroyed = true;
       clearReconnectTimer();
+      stopOrdersPolling();
 
       // Clear any pending debounce timers
       Object.values(debounceTimers.current).forEach(clearTimeout);
