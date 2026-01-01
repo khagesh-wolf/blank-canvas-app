@@ -17,7 +17,30 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm"; -- For fast text search
 -- DROP EXISTING OBJECTS (Clean Slate)
 -- ===========================================
 
--- Drop all functions first (CASCADE handles dependencies)
+-- Drop tables FIRST (CASCADE will drop triggers, indexes, policies automatically)
+DROP TABLE IF EXISTS item_portion_prices CASCADE;
+DROP TABLE IF EXISTS portion_options CASCADE;
+DROP TABLE IF EXISTS inventory_transactions CASCADE;
+DROP TABLE IF EXISTS inventory_items CASCADE;
+DROP TABLE IF EXISTS inventory_categories CASCADE;
+DROP TABLE IF EXISTS payment_blocks CASCADE;
+DROP TABLE IF EXISTS waiter_calls CASCADE;
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS transactions CASCADE;
+DROP TABLE IF EXISTS bills CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS customers CASCADE;
+DROP TABLE IF EXISTS staff CASCADE;
+DROP TABLE IF EXISTS settings CASCADE;
+DROP TABLE IF EXISTS menu_items CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+
+-- Drop types (CASCADE handles dependencies)
+DROP TYPE IF EXISTS inventory_unit_type CASCADE;
+DROP TYPE IF EXISTS order_status CASCADE;
+DROP TYPE IF EXISTS payment_method CASCADE;
+
+-- Drop all functions
 DROP FUNCTION IF EXISTS get_low_stock_items() CASCADE;
 DROP FUNCTION IF EXISTS get_inventory_summary() CASCADE;
 DROP FUNCTION IF EXISTS get_item_portion_prices(TEXT) CASCADE;
@@ -35,34 +58,6 @@ DROP FUNCTION IF EXISTS get_customer_analytics(VARCHAR) CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 DROP FUNCTION IF EXISTS update_customer_stats() CASCADE;
 DROP FUNCTION IF EXISTS immutable_date(TIMESTAMPTZ) CASCADE;
-
--- Drop triggers (will be recreated)
-DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
-DROP TRIGGER IF EXISTS update_inventory_updated_at ON inventory_items;
-DROP TRIGGER IF EXISTS auto_update_customer_stats ON transactions;
-
--- Drop type (CASCADE will drop dependent objects)
-DROP TYPE IF EXISTS inventory_unit_type CASCADE;
-DROP TYPE IF EXISTS order_status CASCADE;
-DROP TYPE IF EXISTS payment_method CASCADE;
-
--- Drop tables in dependency order
-DROP TABLE IF EXISTS item_portion_prices CASCADE;
-DROP TABLE IF EXISTS portion_options CASCADE;
-DROP TABLE IF EXISTS inventory_transactions CASCADE;
-DROP TABLE IF EXISTS inventory_items CASCADE;
-DROP TABLE IF EXISTS inventory_categories CASCADE;
-DROP TABLE IF EXISTS payment_blocks CASCADE;
-DROP TABLE IF EXISTS waiter_calls CASCADE;
-DROP TABLE IF EXISTS expenses CASCADE;
-DROP TABLE IF EXISTS transactions CASCADE;
-DROP TABLE IF EXISTS bills CASCADE;
-DROP TABLE IF EXISTS orders CASCADE;
-DROP TABLE IF EXISTS customers CASCADE;
-DROP TABLE IF EXISTS staff CASCADE;
-DROP TABLE IF EXISTS settings CASCADE;
-DROP TABLE IF EXISTS menu_items CASCADE;
-DROP TABLE IF EXISTS categories CASCADE;
 
 -- ===========================================
 -- HELPER FUNCTIONS (Must be created before tables)
