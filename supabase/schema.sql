@@ -359,12 +359,12 @@ CREATE INDEX idx_orders_active ON orders(status, created_at DESC)
 CREATE INDEX idx_orders_table_active ON orders(table_number, status) 
   WHERE status NOT IN ('served', 'cancelled');
 CREATE INDEX idx_orders_pending ON orders(created_at DESC) WHERE status = 'pending';
-CREATE INDEX idx_orders_today ON orders(created_at DESC) 
-  WHERE created_at > CURRENT_DATE;
+-- NOTE: Partial indexes must use IMMUTABLE predicates. Avoid CURRENT_DATE/NOW() in predicates.
+CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
 
 -- Bills
 CREATE INDEX idx_bills_unpaid ON bills(table_number, created_at DESC) WHERE status = 'unpaid';
-CREATE INDEX idx_bills_today ON bills(paid_at DESC) WHERE paid_at > CURRENT_DATE;
+CREATE INDEX idx_bills_paid_at ON bills(paid_at DESC);
 
 -- Transactions - For reports
 CREATE INDEX idx_tx_date ON transactions(paid_date DESC);
