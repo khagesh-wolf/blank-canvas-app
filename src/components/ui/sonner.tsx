@@ -1,16 +1,21 @@
-import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useTheme } from "@/hooks/useTheme";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  const { theme } = useTheme();
   const isMobile = useIsMobile();
+
+  // Map our theme to sonner's expected theme
+  const sonnerTheme = theme === 'system' 
+    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : theme;
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={sonnerTheme as ToasterProps["theme"]}
       className="toaster group pointer-events-none [&>*]:pointer-events-auto"
       position={isMobile ? "bottom-center" : "bottom-right"}
       closeButton
