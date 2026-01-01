@@ -45,6 +45,7 @@ import { format, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useBackupReminder } from '@/hooks/useBackupReminder';
 import { exportDatabase, dismissBackupReminder } from '@/lib/databaseBackup';
+import { PrinterConnectionUI } from '@/components/PrinterConnectionUI';
 import { Database, Download } from 'lucide-react';
 
 // Order age thresholds (in seconds) for timer coloring
@@ -148,6 +149,7 @@ export default function Counter() {
   // Table Map and Cash Register states
   const [tableMapOpen, setTableMapOpen] = useState(false);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
+  const [printerUIOpen, setPrinterUIOpen] = useState(false);
 
   const isDataLoaded = useStore(state => state.isDataLoaded);
 
@@ -1106,6 +1108,15 @@ export default function Counter() {
                 <Wallet className="w-3 h-3" /> Expenses
               </Button>
               <Button 
+                onClick={() => setPrinterUIOpen(true)}
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                title="Printer Connections"
+              >
+                <Printer className="w-3.5 h-3.5" />
+              </Button>
+              <Button 
                 variant="outline" 
                 size="icon" 
                 className="h-8 w-8" 
@@ -1830,6 +1841,9 @@ export default function Counter() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Printer Connection UI */}
+      <PrinterConnectionUI open={printerUIOpen} onOpenChange={setPrinterUIOpen} />
     </div>
   );
 }
