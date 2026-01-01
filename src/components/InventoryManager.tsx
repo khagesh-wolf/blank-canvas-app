@@ -699,7 +699,19 @@ export function InventoryManager() {
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium">Item</label>
-              <Select value={stockMenuItemId} onValueChange={setStockMenuItemId}>
+              <Select 
+                value={stockMenuItemId} 
+                onValueChange={(itemId) => {
+                  setStockMenuItemId(itemId);
+                  // Auto-select the default container size for this item
+                  const invItem = inventoryItems.find(i => i.menuItemId === itemId);
+                  if (invItem?.defaultBottleSize) {
+                    setContainerSize(invItem.defaultBottleSize.toString());
+                  } else {
+                    setContainerSize('');
+                  }
+                }}
+              >
                 <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
                 <SelectContent>
                   {inventoryMenuItems.map(item => (
