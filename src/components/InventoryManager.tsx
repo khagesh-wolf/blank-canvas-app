@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -136,6 +136,31 @@ export function InventoryManager() {
   const [containerCount, setContainerCount] = useState('');
   const [containerSize, setContainerSize] = useState('');
   const [customContainerSize, setCustomContainerSize] = useState('');
+
+  const lastAutoContainerItemIdRef = useRef<string>('');
+
+  useEffect(() => {
+    if (!showAddStockModal) {
+      lastAutoContainerItemIdRef.current = '';
+      return;
+    }
+
+    if (!stockMenuItemId) return;
+
+    // Auto-select default size when modal opens with a pre-selected item
+    // (works for all unit types: ml, pack, bottle, pcs, etc.)
+    const invItem = inventoryItems.find(i => i.menuItemId === stockMenuItemId);
+    if (!invItem) return;
+
+    if (lastAutoContainerItemIdRef.current === stockMenuItemId) return;
+
+    const containerConfig = DEFAULT_CONTAINER_SIZES[invItem.unit];
+    const preferredSize = invItem.defaultBottleSize ?? containerConfig.sizes[0];
+
+    setContainerSize(preferredSize?.toString() ?? '');
+    setCustomContainerSize('');
+    lastAutoContainerItemIdRef.current = stockMenuItemId;
+  }, [showAddStockModal, stockMenuItemId, inventoryItems]);
   
   // Edit container size modal (for all unit types)
   const [editContainerSizeItem, setEditContainerSizeItem] = useState<{ menuItemId: string; invItem: InventoryItem } | null>(null);
@@ -703,12 +728,19 @@ export function InventoryManager() {
                 value={stockMenuItemId} 
                 onValueChange={(itemId) => {
                   setStockMenuItemId(itemId);
-                  // Auto-select the default container size for this item
+
+                  // Auto-select the default container size for this item (all unit types)
                   const invItem = inventoryItems.find(i => i.menuItemId === itemId);
-                  if (invItem?.defaultBottleSize) {
-                    setContainerSize(invItem.defaultBottleSize.toString());
+                  if (invItem) {
+                    const containerConfig = DEFAULT_CONTAINER_SIZES[invItem.unit];
+                    const preferredSize = invItem.defaultBottleSize ?? containerConfig.sizes[0];
+                    setContainerSize(preferredSize?.toString() ?? '');
+                    setCustomContainerSize('');
+                    lastAutoContainerItemIdRef.current = itemId;
                   } else {
                     setContainerSize('');
+                    setCustomContainerSize('');
+                    lastAutoContainerItemIdRef.current = '';
                   }
                 }}
               >
