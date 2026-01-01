@@ -95,8 +95,8 @@ interface StoreState extends AuthState {
   // Categories
   categories: Category[];
   setCategories: (categories: Category[]) => void;
-  addCategory: (name: string, prepTime?: number, parentId?: string) => void;
-  updateCategory: (id: string, name: string, prepTime?: number, parentId?: string) => void;
+  addCategory: (name: string, prepTime?: number, parentId?: string, useBarPrinter?: boolean) => void;
+  updateCategory: (id: string, name: string, prepTime?: number, parentId?: string, useBarPrinter?: boolean) => void;
   deleteCategory: (id: string) => void;
   reorderCategories: (fromIndex: number, toIndex: number) => void;
 
@@ -256,21 +256,22 @@ export const useStore = create<StoreState>()((set, get) => ({
   categories: [],
   setCategories: (categories) => set({ categories }),
 
-  addCategory: (name, prepTime, parentId) => {
+  addCategory: (name, prepTime, parentId, useBarPrinter) => {
     const maxOrder = Math.max(0, ...get().categories.map(c => c.sortOrder));
-    const newCategory = { id: generateId(), name, sortOrder: maxOrder + 1, prepTime: prepTime || 5, parentId };
+    const newCategory = { id: generateId(), name, sortOrder: maxOrder + 1, prepTime: prepTime || 5, parentId, useBarPrinter };
     set((state) => ({ categories: [...state.categories, newCategory] }));
     syncToBackend(() => categoriesApi.create(newCategory));
   },
 
-  updateCategory: (id, name, prepTime, parentId) => {
+  updateCategory: (id, name, prepTime, parentId, useBarPrinter) => {
     const category = get().categories.find(c => c.id === id);
     if (!category) return;
     const updated = { 
       ...category, 
       name, 
       prepTime: prepTime !== undefined ? prepTime : category.prepTime,
-      parentId: parentId !== undefined ? parentId : category.parentId
+      parentId: parentId !== undefined ? parentId : category.parentId,
+      useBarPrinter: useBarPrinter !== undefined ? useBarPrinter : category.useBarPrinter
     };
     set((state) => ({
       categories: state.categories.map(c => c.id === id ? updated : c)

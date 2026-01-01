@@ -96,7 +96,8 @@ export default function Admin() {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryPrepTime, setNewCategoryPrepTime] = useState('5');
   const [newCategoryParentId, setNewCategoryParentId] = useState<string | undefined>(undefined);
-  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string; prepTime?: number; parentId?: string } | null>(null);
+  const [editingCategory, setEditingCategory] = useState<{ id: string; name: string; prepTime?: number; parentId?: string; useBarPrinter?: boolean } | null>(null);
+  const [newCategoryUseBarPrinter, setNewCategoryUseBarPrinter] = useState(false);
 
   // Mobile menu state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1986,6 +1987,38 @@ export default function Admin() {
                         />
                       </div>
                     </div>
+                    
+                    {/* Dual Printer Mode */}
+                    <div className="pt-4 border-t border-border">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="text-sm font-medium">Dual Printer Mode</label>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Use 2 printers: Kitchen + Bar. Configure categories to route to Bar printer.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={settings.dualPrinterEnabled || false}
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await updateSettings({ dualPrinterEnabled: checked });
+                              toast.success(checked ? 'Dual printer mode enabled' : 'Dual printer mode disabled');
+                            } catch (err) {
+                              toast.error('Failed to save setting');
+                            }
+                          }}
+                        />
+                      </div>
+                      {settings.dualPrinterEnabled && (
+                        <div className="mt-3 p-3 bg-muted rounded-lg text-xs space-y-1">
+                          <p className="font-medium">🖨️ Printer 1 (Kitchen): Regular KOT</p>
+                          <p className="font-medium">🍹 Printer 2 (Bar): Categories marked with bar printer + Bill receipts</p>
+                          <p className="text-muted-foreground mt-2">
+                            Mark categories in Menu → Manage Categories with the bar printer toggle.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -2662,10 +2695,11 @@ export default function Admin() {
                 <Button 
                   onClick={() => {
                     if (newCategoryName.trim()) {
-                      addCategory(newCategoryName.trim(), parseInt(newCategoryPrepTime) || 5, newCategoryParentId);
+                      addCategory(newCategoryName.trim(), parseInt(newCategoryPrepTime) || 5, newCategoryParentId, newCategoryUseBarPrinter);
                       setNewCategoryName('');
                       setNewCategoryPrepTime('5');
                       setNewCategoryParentId(undefined);
+                      setNewCategoryUseBarPrinter(false);
                       toast.success('Category added');
                     }
                   }}
@@ -2674,6 +2708,16 @@ export default function Admin() {
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
+              {settings.dualPrinterEnabled && (
+                <div className="flex items-center gap-2 p-2 bg-accent/30 rounded-lg">
+                  <Switch
+                    checked={newCategoryUseBarPrinter}
+                    onCheckedChange={setNewCategoryUseBarPrinter}
+                  />
+                  <label className="text-sm">🍹 Print to Bar Printer</label>
+                  <span className="text-xs text-muted-foreground">(Drinks, Coffee, etc.)</span>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Main categories show in tabs. Subcategories group items within a main category.
               </p>
@@ -2755,7 +2799,7 @@ export default function Admin() {
                               />
                               <Button size="sm" variant="ghost" onClick={() => {
                                 if (editingCategory.name.trim()) {
-                                  updateCategory(mainCat.id, editingCategory.name.trim(), editingCategory.prepTime, editingCategory.parentId);
+                                  updateCategory(mainCat.id, editingCategory.name.trim(), editingCategory.prepTime, editingCategory.parentId, editingCategory.useBarPrinter);
                                   setEditingCategory(null);
                                   toast.success('Category updated');
                                 }
@@ -2765,11 +2809,25 @@ export default function Admin() {
                               <Button size="sm" variant="ghost" onClick={() => setEditingCategory(null)}>
                                 <X className="w-4 h-4" />
                               </Button>
+                              {settings.dualPrinterEnabled && (
+                                <div className="flex items-center gap-1 ml-2">
+                                  <Switch
+                                    checked={editingCategory.useBarPrinter || false}
+                                    onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, useBarPrinter: checked })}
+                                  />
+                                  <span className="text-xs">🍹</span>
+                                </div>
+                              )}
                             </>
                           ) : (
                             <>
                               <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                               <span className="flex-1 font-medium">{mainCat.name}</span>
+                              {mainCat.useBarPrinter && settings.dualPrinterEnabled && (
+                                <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded" title="Prints to Bar Printer">
+                                  🍹 Bar
+                                </span>
+                              )}
                               <span className="text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded">
                                 {mainCat.prepTime || 5}m
                               </span>
@@ -2781,7 +2839,7 @@ export default function Admin() {
                               <span className="text-xs text-muted-foreground">
                                 {menuItems.filter(m => m.category === mainCat.name || subcategories.some(sc => sc.name === m.category)).length} items
                               </span>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingCategory({ id: mainCat.id, name: mainCat.name, prepTime: mainCat.prepTime || 5, parentId: mainCat.parentId })}>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingCategory({ id: mainCat.id, name: mainCat.name, prepTime: mainCat.prepTime || 5, parentId: mainCat.parentId, useBarPrinter: mainCat.useBarPrinter })}>
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button 
@@ -2851,7 +2909,7 @@ export default function Admin() {
                                 </Select>
                                 <Button size="sm" variant="ghost" onClick={() => {
                                   if (editingCategory.name.trim()) {
-                                    updateCategory(subCat.id, editingCategory.name.trim(), editingCategory.prepTime, editingCategory.parentId);
+                                    updateCategory(subCat.id, editingCategory.name.trim(), editingCategory.prepTime, editingCategory.parentId, editingCategory.useBarPrinter);
                                     setEditingCategory(null);
                                     toast.success('Subcategory updated');
                                   }
@@ -2861,14 +2919,28 @@ export default function Admin() {
                                 <Button size="sm" variant="ghost" onClick={() => setEditingCategory(null)}>
                                   <X className="w-4 h-4" />
                                 </Button>
+                                {settings.dualPrinterEnabled && (
+                                  <div className="flex items-center gap-1 ml-1">
+                                    <Switch
+                                      checked={editingCategory.useBarPrinter || false}
+                                      onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, useBarPrinter: checked })}
+                                    />
+                                    <span className="text-xs">🍹</span>
+                                  </div>
+                                )}
                               </>
                             ) : (
                               <>
                                 <span className="flex-1 text-sm">{subCat.name}</span>
+                                {subCat.useBarPrinter && settings.dualPrinterEnabled && (
+                                  <span className="text-xs bg-warning/20 text-warning px-1 py-0.5 rounded" title="Bar Printer">
+                                    🍹
+                                  </span>
+                                )}
                                 <span className="text-xs text-muted-foreground">
                                   {menuItems.filter(m => m.category === subCat.name).length} items
                                 </span>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingCategory({ id: subCat.id, name: subCat.name, prepTime: subCat.prepTime || 5, parentId: subCat.parentId })}>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingCategory({ id: subCat.id, name: subCat.name, prepTime: subCat.prepTime || 5, parentId: subCat.parentId, useBarPrinter: subCat.useBarPrinter })}>
                                   <Edit className="w-3 h-3" />
                                 </Button>
                                 <Button 

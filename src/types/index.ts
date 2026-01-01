@@ -4,6 +4,7 @@ export interface Category {
   sortOrder: number;
   prepTime?: number; // Average prep time in minutes
   parentId?: string; // For subcategories (e.g., "Beers" under "Drinks")
+  useBarPrinter?: boolean; // If true, items in this category print to bar/second printer
 }
 
 export interface MenuItem {
@@ -141,6 +142,8 @@ export interface Settings {
   soundAlertsEnabled?: boolean;
   // Order cancellation restriction
   acceptedOrderCancelAdminOnly?: boolean; // If true, only admin/counter-as-admin can cancel accepted orders
+  // Dual printer settings
+  dualPrinterEnabled?: boolean; // Enable dual printer mode (kitchen + bar printers)
 }
 
 export interface DashboardStats {
