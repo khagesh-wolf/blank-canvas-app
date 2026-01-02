@@ -568,7 +568,7 @@ export default function TableOrder() {
     const portions = getPortionsByItem(item.id);
     const portionsWithPrices = portions.filter(p => p.fixedPrice != null);
     if (portionsWithPrices.length > 0 && !portion) {
-      // Show portion selector
+      // Always show portion selector for portion-based items (even if already in cart)
       setPortionSelectorItem(item);
       return;
     }
@@ -649,13 +649,15 @@ export default function TableOrder() {
     
     const cartItemId = cartItem.id;
     
-    setCart(cart.map(c => {
+    const newCart = cart.map(c => {
       if (c.id === cartItemId) {
         const newQty = c.qty + delta;
-        return newQty > 0 ? { ...c, qty: newQty } : c;
+        return { ...c, qty: newQty };
       }
       return c;
-    }).filter(c => c.qty > 0));
+    }).filter(c => c.qty > 0);
+    
+    setCart(newCart);
   };
 
   // removeFromCart also handles both cart item ID and menu item ID
@@ -1201,30 +1203,47 @@ export default function TableOrder() {
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
                       )}
                       <div className="mt-3">
-                        {qty === 0 ? (
-                          <button
-                            onClick={() => addToCart(item)}
-                            className={`bg-card border border-border text-primary font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow ${lastAddedItemId === item.id ? 'cart-bounce' : ''}`}
-                          >
-                            ADD
-                          </button>
-                        ) : (
-                          <div className="inline-flex items-center bg-card border border-border rounded-full overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.1)]">
+                        {/* Check if this favorite has portions */}
+                        {(() => {
+                          const portions = getPortionsByItem(item.id);
+                          const hasPortions = portions.filter(p => p.fixedPrice != null).length > 0;
+                          
+                          if (hasPortions) {
+                            return (
+                              <button
+                                onClick={() => addToCart(item)}
+                                className={`bg-card border border-border text-primary font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow ${lastAddedItemId === item.id ? 'cart-bounce' : ''}`}
+                              >
+                                {qty > 0 ? `ADD MORE (${qty})` : 'ADD'}
+                              </button>
+                            );
+                          }
+                          
+                          return qty === 0 ? (
                             <button
-                              onClick={() => updateQty(item.id, -1)}
-                              className="w-9 h-8 flex items-center justify-center text-primary text-xl active:bg-muted"
+                              onClick={() => addToCart(item)}
+                              className={`bg-card border border-border text-primary font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow ${lastAddedItemId === item.id ? 'cart-bounce' : ''}`}
                             >
-                              −
+                              ADD
                             </button>
-                            <span className="font-bold text-sm w-6 text-center text-foreground">{qty}</span>
-                            <button
-                              onClick={() => updateQty(item.id, 1)}
-                              className="w-9 h-8 flex items-center justify-center text-primary text-xl active:bg-muted"
-                            >
-                              +
-                            </button>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="inline-flex items-center bg-card border border-border rounded-full overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.1)]">
+                              <button
+                                onClick={() => updateQty(item.id, -1)}
+                                className="w-9 h-8 flex items-center justify-center text-primary text-xl active:bg-muted"
+                              >
+                                −
+                              </button>
+                              <span className="font-bold text-sm w-6 text-center text-foreground">{qty}</span>
+                              <button
+                                onClick={() => updateQty(item.id, 1)}
+                                className="w-9 h-8 flex items-center justify-center text-primary text-xl active:bg-muted"
+                              >
+                                +
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     <LazyImage
@@ -1312,6 +1331,14 @@ export default function TableOrder() {
                       <span className="inline-block bg-muted text-muted-foreground font-medium px-4 py-1.5 rounded-full text-sm">
                         Unavailable
                       </span>
+                    ) : hasInventoryPricing ? (
+                      /* For portioned items: always show ADD MORE button that opens portion selector */
+                      <button
+                        onClick={() => addToCart(item)}
+                        className={`bg-card border border-border text-primary font-bold px-5 py-1.5 rounded-full shadow-sm hover:shadow-md transition-shadow ${lastAddedItemId === item.id ? 'cart-bounce' : ''}`}
+                      >
+                        {qty > 0 ? `ADD MORE (${qty})` : 'ADD'}
+                      </button>
                     ) : qty === 0 ? (
                       <button
                         onClick={() => addToCart(item)}
@@ -1683,6 +1710,17 @@ export default function TableOrder() {
           open={!!portionSelectorItem}
           onClose={() => setPortionSelectorItem(null)}
           onSelect={handlePortionSelect}
+          existingCartQty={cart
+            .filter(c => c.menuItemId === portionSelectorItem.id && c.portionName)
+            .reduce((acc, c) => {
+              // Find portion ID from portion name
+              const portions = getPortionsByItem(portionSelectorItem.id);
+              const portion = portions.find(p => p.name === c.portionName);
+              if (portion) {
+                acc[portion.id] = (acc[portion.id] || 0) + c.qty;
+              }
+              return acc;
+            }, {} as Record<string, number>)}
         />
       )}
 

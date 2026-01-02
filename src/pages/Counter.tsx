@@ -488,13 +488,16 @@ export default function Counter() {
     
     // Check if dual printer mode is enabled
     if (settings.dualPrinterEnabled) {
-      // Build category bar printer lookup
+      // Build categoryKey (id or name) -> useBarPrinter map
       const categoryBarPrinterMap = new Map<string, boolean>();
       categories.forEach(cat => {
-        categoryBarPrinterMap.set(cat.name, cat.useBarPrinter || false);
+        const flag = cat.useBarPrinter ?? false;
+        // Support both id and name lookups since MenuItem.category could be either
+        categoryBarPrinterMap.set(cat.name, flag);
+        categoryBarPrinterMap.set(cat.id, flag);
       });
 
-      // Build menuItemId -> categoryName lookup
+      // Build menuItemId -> category lookup
       const menuItemCategoryMap = new Map<string, string>();
       menuItems.forEach(item => {
         menuItemCategoryMap.set(item.id, item.category);
@@ -505,8 +508,8 @@ export default function Counter() {
       const barItems: OrderItem[] = [];
 
       group.allItems.forEach(item => {
-        const categoryName = menuItemCategoryMap.get(item.menuItemId);
-        const useBarPrinter = categoryName ? categoryBarPrinterMap.get(categoryName) : false;
+        const categoryKey = menuItemCategoryMap.get(item.menuItemId);
+        const useBarPrinter = categoryKey ? (categoryBarPrinterMap.get(categoryKey) ?? false) : false;
         
         if (useBarPrinter) {
           barItems.push(item);
@@ -517,12 +520,14 @@ export default function Counter() {
 
       // Print Kitchen KOT if there are kitchen items
       if (kitchenItems.length > 0) {
-        printSingleKOT(group, kitchenItems, allNotes, '🍳 KITCHEN ORDER');
+        printSingleKOT(group, kitchenItems, allNotes, 'KITCHEN ORDER');
       }
 
-      // Print Bar KOT if there are bar items
+      // Print Bar KOT if there are bar items (with delay for browser popup blocking)
       if (barItems.length > 0) {
-        printSingleKOT(group, barItems, allNotes, '🍹 BAR ORDER');
+        setTimeout(() => {
+          printSingleKOT(group, barItems, allNotes, 'BAR ORDER');
+        }, 500);
       }
     } else {
       // Single printer mode - print all items together

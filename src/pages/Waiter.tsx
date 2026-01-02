@@ -231,7 +231,7 @@ export default function Waiter() {
     const portions = getPortionsByItem(item.id);
     const portionsWithPrices = portions.filter(p => p.fixedPrice != null);
     if (portionsWithPrices.length > 0 && !portion) {
-      // Show portion selector
+      // Always show portion selector for portion-based items (even if already in cart)
       setPortionSelectorItem(item);
       return;
     }
@@ -301,13 +301,15 @@ export default function Waiter() {
       }
     }
     
-    setCart(cart.map(c => {
+    const newCart = cart.map(c => {
       if (c.id === itemId) {
         const newQty = c.qty + delta;
-        return newQty > 0 ? { ...c, qty: newQty } : c;
+        return { ...c, qty: newQty };
       }
       return c;
-    }).filter(c => c.qty > 0));
+    }).filter(c => c.qty > 0);
+    
+    setCart(newCart);
   };
 
   const handleConfirmOrder = async () => {
