@@ -54,6 +54,7 @@ export default function Kitchen() {
     logout,
     settings,
     categories,
+    menuItems,
   } = useStore();
   const [filter, setFilter] = useState<"all" | OrderStatus>("all");
   const [viewMode, setViewMode] = useState<"orders" | "items" | "lanes">("orders");
@@ -184,12 +185,21 @@ export default function Kitchen() {
     updateOrderStatus(order.id, newStatus);
     toast.success(`Order marked as ${newStatus}`);
 
-    // Auto-print KOT when kitchen accepts an order (if KOT is enabled)
+    // Auto-print KOT when kitchen accepts an order (supports dual printer mode)
     if (newStatus === "accepted" && settings.kotPrintingEnabled) {
       try {
-        const printed = await printKOTFromOrder(order, settings.restaurantName);
+        const printed = await printKOTFromOrder(
+          order, 
+          settings.restaurantName,
+          undefined,
+          {
+            dualPrinterEnabled: settings.dualPrinterEnabled,
+            categories,
+            menuItems
+          }
+        );
         if (printed) {
-          toast.success("KOT printed");
+          toast.success(settings.dualPrinterEnabled ? "KOT printed (split)" : "KOT printed");
         } else {
           showKOTNotification(order);
         }

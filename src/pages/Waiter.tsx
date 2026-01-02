@@ -323,12 +323,21 @@ export default function Waiter() {
     if (goesToKitchen) {
       toast.success(`Order sent to kitchen for Table ${selectedTable}!`);
       
-      // Auto-print KOT if enabled
+      // Auto-print KOT if enabled (supports dual printer mode)
       if (settings.kotPrintingEnabled) {
         try {
-          const printed = await printKOTFromOrder(newOrder, settings.restaurantName, currentUser?.name);
+          const printed = await printKOTFromOrder(
+            newOrder, 
+            settings.restaurantName, 
+            currentUser?.name,
+            {
+              dualPrinterEnabled: settings.dualPrinterEnabled,
+              categories,
+              menuItems
+            }
+          );
           if (printed) {
-            toast.success('KOT printed!');
+            toast.success(settings.dualPrinterEnabled ? 'KOT printed (split by printer)!' : 'KOT printed!');
           } else {
             showKOTNotification(newOrder);
           }

@@ -1,10 +1,16 @@
 /**
  * Kitchen Order Ticket (KOT) Printing
  * Prints KOT when waiter sends an order (if enabled in settings)
+ * 
+ * Supports dual printer mode:
+ * - When enabled, splits items by category (useBarPrinter flag)
+ * - Kitchen items → Kitchen printer / console
+ * - Bar items → Bar printer / console
  */
 
 import { receiptPrinter } from './receiptPrinter';
-import { Order } from '@/types';
+import { dualPrinter } from './dualPrinter';
+import { Order, Category, MenuItem } from '@/types';
 
 export interface KOTData {
   restaurantName: string;
@@ -17,6 +23,7 @@ export interface KOTData {
   }>;
   notes?: string;
   waiterName?: string;
+  printerLabel?: string;
 }
 
 class KOTPrinter {
@@ -45,24 +52,7 @@ class KOTPrinter {
       
       // Note: Full implementation would send ESC/POS commands
       // For demo, we log the content
-      console.log('='.repeat(32));
-      console.log('       KITCHEN ORDER TICKET');
-      console.log('='.repeat(32));
-      console.log(`Table: ${data.tableNumber}`);
-      console.log(`Time: ${data.time}`);
-      console.log(`Order: #${data.orderId}`);
-      if (data.waiterName) {
-        console.log(`Waiter: ${data.waiterName}`);
-      }
-      console.log('-'.repeat(32));
-      data.items.forEach(item => {
-        console.log(`${item.qty}x ${item.name}`);
-      });
-      if (data.notes) {
-        console.log('-'.repeat(32));
-        console.log(`Notes: ${data.notes}`);
-      }
-      console.log('='.repeat(32));
+      this.logKOTToConsole(data);
       
       return true;
     } catch (error) {
@@ -71,10 +61,32 @@ class KOTPrinter {
     }
   }
 
+  // Log KOT to console (for demo/preview)
+  logKOTToConsole(data: KOTData): void {
+    console.log('='.repeat(32));
+    console.log(`  ${data.printerLabel || 'KITCHEN ORDER TICKET'}`);
+    console.log('='.repeat(32));
+    console.log(`Table: ${data.tableNumber}`);
+    console.log(`Time: ${data.time}`);
+    console.log(`Order: #${data.orderId}`);
+    if (data.waiterName) {
+      console.log(`Waiter: ${data.waiterName}`);
+    }
+    console.log('-'.repeat(32));
+    data.items.forEach(item => {
+      console.log(`${item.qty}x ${item.name}`);
+    });
+    if (data.notes) {
+      console.log('-'.repeat(32));
+      console.log(`Notes: ${data.notes}`);
+    }
+    console.log('='.repeat(32));
+  }
+
   private formatKOT(data: KOTData): string {
     let content = '';
     content += `${'='.repeat(32)}\n`;
-    content += `       KITCHEN ORDER TICKET\n`;
+    content += `  ${data.printerLabel || 'KITCHEN ORDER TICKET'}\n`;
     content += `${'='.repeat(32)}\n`;
     content += `Table: ${data.tableNumber}\n`;
     content += `Time: ${data.time}\n`;
@@ -100,17 +112,36 @@ class KOTPrinter {
 
 export const kotPrinter = new KOTPrinter();
 
-// Helper function to print KOT from an Order
-export async function printKOTFromOrder(order: Order, restaurantName: string, waiterName?: string): Promise<boolean> {
+/**
+ * Print KOT from an Order - supports both single and dual printer modes
+ */
+export async function printKOTFromOrder(
+  order: Order,
+  restaurantName: string,
+  waiterName?: string,
+  options?: {
+    dualPrinterEnabled?: boolean;
+    categories?: Category[];
+    menuItems?: MenuItem[];
+  }
+): Promise<boolean> {
+  const time = new Date(order.createdAt).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  // Check if dual printer mode is enabled
+  if (options?.dualPrinterEnabled && options.categories && options.menuItems) {
+    return printDualKOT(order, restaurantName, waiterName, time, options.categories, options.menuItems);
+  }
+
+  // Single printer mode - print all items together
   const kotData: KOTData = {
     restaurantName,
     tableNumber: order.tableNumber,
     orderId: order.id.slice(-6),
-    time: new Date(order.createdAt).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    }),
+    time,
     items: order.items.map(item => ({
       name: item.name,
       qty: item.qty
@@ -120,6 +151,101 @@ export async function printKOTFromOrder(order: Order, restaurantName: string, wa
   };
 
   return kotPrinter.printKOT(kotData);
+}
+
+/**
+ * Print split KOT for dual printer mode
+ * Separates items into Kitchen and Bar tickets based on category settings
+ */
+async function printDualKOT(
+  order: Order,
+  restaurantName: string,
+  waiterName: string | undefined,
+  time: string,
+  categories: Category[],
+  menuItems: MenuItem[]
+): Promise<boolean> {
+  // Build menuItemId -> categoryName map
+  const menuItemCategoryMap = new Map<string, string>();
+  menuItems.forEach(item => {
+    menuItemCategoryMap.set(item.id, item.category);
+  });
+
+  // Build categoryName -> useBarPrinter map
+  const categoryBarPrinterMap = new Map<string, boolean>();
+  categories.forEach(cat => {
+    categoryBarPrinterMap.set(cat.name, cat.useBarPrinter || false);
+  });
+
+  // Split items by printer destination
+  const kitchenItems: Array<{ name: string; qty: number }> = [];
+  const barItems: Array<{ name: string; qty: number }> = [];
+
+  order.items.forEach(item => {
+    const categoryName = menuItemCategoryMap.get(item.menuItemId);
+    const useBarPrinter = categoryName ? categoryBarPrinterMap.get(categoryName) : false;
+    
+    if (useBarPrinter) {
+      barItems.push({ name: item.name, qty: item.qty });
+    } else {
+      kitchenItems.push({ name: item.name, qty: item.qty });
+    }
+  });
+
+  const baseData = {
+    restaurantName,
+    tableNumber: order.tableNumber,
+    orderId: order.id.slice(-6),
+    time,
+    notes: order.notes,
+    waiterName
+  };
+
+  let success = true;
+
+  // Print/log Kitchen KOT if there are kitchen items
+  if (kitchenItems.length > 0) {
+    const kitchenStatus = dualPrinter.kitchenPrinter.isConnected();
+    if (kitchenStatus) {
+      const printed = await dualPrinter.kitchenPrinter.printKOT({
+        ...baseData,
+        items: kitchenItems,
+        printerLabel: 'KITCHEN ORDER'
+      });
+      success = success && printed;
+    } else {
+      // Log to console when printer not connected
+      console.log('\n🍳 KITCHEN PRINTER OUTPUT:');
+      kotPrinter.logKOTToConsole({
+        ...baseData,
+        items: kitchenItems,
+        printerLabel: 'KITCHEN ORDER'
+      });
+    }
+  }
+
+  // Print/log Bar KOT if there are bar items
+  if (barItems.length > 0) {
+    const barStatus = dualPrinter.barPrinter.isConnected();
+    if (barStatus) {
+      const printed = await dualPrinter.barPrinter.printKOT({
+        ...baseData,
+        items: barItems,
+        printerLabel: 'BAR ORDER'
+      });
+      success = success && printed;
+    } else {
+      // Log to console when printer not connected
+      console.log('\n🍹 BAR PRINTER OUTPUT:');
+      kotPrinter.logKOTToConsole({
+        ...baseData,
+        items: barItems,
+        printerLabel: 'BAR ORDER'
+      });
+    }
+  }
+
+  return success;
 }
 
 // Browser notification for KOT (fallback when printer not available)

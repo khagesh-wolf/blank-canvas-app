@@ -21,7 +21,7 @@ import {
   Trash2,
   Bell,
   Settings,
-  Map,
+  Map as MapIcon,
   Calculator,
   Sun,
   Moon,
@@ -485,10 +485,56 @@ export default function Counter() {
 
   const printKOTGroup = (group: PendingOrderGroup) => {
     const allNotes = group.orders.filter(o => o.notes).map(o => o.notes).join('; ');
+    
+    // Check if dual printer mode is enabled
+    if (settings.dualPrinterEnabled) {
+      // Build category bar printer lookup
+      const categoryBarPrinterMap = new Map<string, boolean>();
+      categories.forEach(cat => {
+        categoryBarPrinterMap.set(cat.name, cat.useBarPrinter || false);
+      });
+
+      // Build menuItemId -> categoryName lookup
+      const menuItemCategoryMap = new Map<string, string>();
+      menuItems.forEach(item => {
+        menuItemCategoryMap.set(item.id, item.category);
+      });
+
+      // Split items by printer destination
+      const kitchenItems: OrderItem[] = [];
+      const barItems: OrderItem[] = [];
+
+      group.allItems.forEach(item => {
+        const categoryName = menuItemCategoryMap.get(item.menuItemId);
+        const useBarPrinter = categoryName ? categoryBarPrinterMap.get(categoryName) : false;
+        
+        if (useBarPrinter) {
+          barItems.push(item);
+        } else {
+          kitchenItems.push(item);
+        }
+      });
+
+      // Print Kitchen KOT if there are kitchen items
+      if (kitchenItems.length > 0) {
+        printSingleKOT(group, kitchenItems, allNotes, '🍳 KITCHEN ORDER');
+      }
+
+      // Print Bar KOT if there are bar items
+      if (barItems.length > 0) {
+        printSingleKOT(group, barItems, allNotes, '🍹 BAR ORDER');
+      }
+    } else {
+      // Single printer mode - print all items together
+      printSingleKOT(group, group.allItems, allNotes, 'KITCHEN ORDER');
+    }
+  };
+
+  const printSingleKOT = (group: PendingOrderGroup, items: OrderItem[], notes: string, label: string) => {
     const printContent = `
       <div style="font-family: monospace; width: 300px; padding: 10px;">
         <div style="text-align: center; border-bottom: 1px dashed black; padding-bottom: 10px; margin-bottom: 10px;">
-          <h2 style="margin: 0;">KITCHEN ORDER</h2>
+          <h2 style="margin: 0;">${label}</h2>
           <div>${formatNepalDateTime(new Date())}</div>
         </div>
         <div style="font-size: 1.2rem; font-weight: bold; text-align: center; margin: 10px 0; border: 2px solid black; padding: 5px;">
@@ -497,16 +543,16 @@ export default function Counter() {
         <div style="text-align: center; margin-bottom: 10px; font-weight: bold;">Customer: ${group.phone}</div>
         ${group.orders.length > 1 ? `<div style="text-align: center; margin-bottom: 10px; font-size: 0.9rem;">(${group.orders.length} orders combined)</div>` : ''}
         <div style="border-bottom: 2px solid black; margin-bottom: 10px;"></div>
-        ${group.allItems.map(i => `
+        ${items.map(i => `
           <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold; margin-bottom: 5px;">
             <span>${i.qty} x</span>
             <span>${i.name}</span>
           </div>
         `).join('')}
-        ${allNotes ? `
+        ${notes ? `
           <div style="border-top: 1px dashed black; margin-top: 10px; padding-top: 10px;">
             <div style="font-weight: bold; margin-bottom: 5px;">📝 Special Instructions:</div>
-            <div style="font-size: 1.1rem;">${allNotes}</div>
+            <div style="font-size: 1.1rem;">${notes}</div>
           </div>
         ` : ''}
         <div style="border-top: 2px solid black; margin-top: 20px; padding-top: 10px; text-align: center;">
@@ -1085,7 +1131,7 @@ export default function Counter() {
                 size="sm"
                 className="h-8 text-xs flex items-center gap-1"
               >
-                <Map className="w-3 h-3" /> Tables
+                <MapIcon className="w-3 h-3" /> Tables
               </Button>
               <Button 
                 onClick={() => setCashRegisterOpen(true)}
@@ -1747,7 +1793,7 @@ export default function Counter() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Map className="w-5 h-5 text-primary" />
+              <MapIcon className="w-5 h-5 text-primary" />
               Table Overview
             </DialogTitle>
           </DialogHeader>
