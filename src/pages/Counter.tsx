@@ -46,6 +46,8 @@ import { cn } from '@/lib/utils';
 import { useBackupReminder } from '@/hooks/useBackupReminder';
 import { exportDatabase, dismissBackupReminder } from '@/lib/databaseBackup';
 import { PrinterConnectionUI } from '@/components/PrinterConnectionUI';
+import { dualPrinter } from '@/lib/dualPrinter';
+import { networkKitchenPrinter, networkBarPrinter } from '@/lib/networkPrinter';
 import { Database, Download } from 'lucide-react';
 
 // Order age thresholds (in seconds) for timer coloring
@@ -558,7 +560,53 @@ export default function Counter() {
     }
   };
 
-  const printSingleKOT = (group: PendingOrderGroup, items: OrderItem[], notes: string, label: string) => {
+  const printSingleKOT = async (group: PendingOrderGroup, items: OrderItem[], notes: string, label: string) => {
+    const kotData = {
+      restaurantName: settings.restaurantName || 'Restaurant',
+      tableNumber: group.tableNumber,
+      orderId: group.orders.map(o => o.id.slice(-6)).join(', '),
+      time: formatNepalDateTime(new Date()),
+      items: items.map(i => ({ name: i.name, qty: i.qty })),
+      notes: notes || undefined,
+      printerLabel: label,
+    };
+
+    const isKitchen = label === 'KITCHEN ORDER';
+    
+    // Try USB printers first
+    const usbStatus = dualPrinter.getStatus();
+    if (isKitchen && usbStatus.kitchen) {
+      const success = await dualPrinter.kitchenPrinter.printKOT(kotData);
+      if (success) {
+        toast.success('Kitchen KOT sent to printer');
+        return;
+      }
+    }
+    if (!isKitchen && usbStatus.bar) {
+      const success = await dualPrinter.barPrinter.printKOT(kotData);
+      if (success) {
+        toast.success('Bar KOT sent to printer');
+        return;
+      }
+    }
+
+    // Try network printers
+    if (isKitchen && networkKitchenPrinter.isConfigured()) {
+      const success = await networkKitchenPrinter.printKOT(kotData);
+      if (success) {
+        toast.success('Kitchen KOT sent via network');
+        return;
+      }
+    }
+    if (!isKitchen && networkBarPrinter.isConfigured()) {
+      const success = await networkBarPrinter.printKOT(kotData);
+      if (success) {
+        toast.success('Bar KOT sent via network');
+        return;
+      }
+    }
+
+    // Fallback to browser print dialog
     const printContent = `
       <div style="font-family: monospace; width: 300px; padding: 10px;">
         <div style="text-align: center; border-bottom: 1px dashed black; padding-bottom: 10px; margin-bottom: 10px;">
@@ -579,7 +627,7 @@ export default function Counter() {
         `).join('')}
         ${notes ? `
           <div style="border-top: 1px dashed black; margin-top: 10px; padding-top: 10px;">
-            <div style="font-weight: bold; margin-bottom: 5px;">📝 Special Instructions:</div>
+            <div style="font-weight: bold; margin-bottom: 5px;">Notes:</div>
             <div style="font-size: 1.1rem;">${notes}</div>
           </div>
         ` : ''}
