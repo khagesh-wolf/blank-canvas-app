@@ -958,11 +958,8 @@ export default function Admin() {
                       {subscriptionStatus.isTrial ? 'Trial Period' : 'Active Subscription'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {(() => {
-                        const expiresAt = new Date(subscriptionStatus.expiresAt);
-                        const purchasedAt = new Date(expiresAt.getTime() - (subscriptionStatus.daysRemaining ?? 0) * 24 * 60 * 60 * 1000 - ((subscriptionStatus.isTrial ? 14 : 30) * 24 * 60 * 60 * 1000));
-                        return `Started ${purchasedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} • Valid until ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-                      })()}
+                      Valid until {new Date(subscriptionStatus.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {subscriptionStatus.daysRemaining !== null && ` • ${subscriptionStatus.daysRemaining} days remaining`}
                     </p>
                   </div>
                   <div className={`text-xs font-medium px-2 py-1 rounded-full ${
